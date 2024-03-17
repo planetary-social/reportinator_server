@@ -1,0 +1,18 @@
+[package]
+name = "reportinator_server"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+anyhow = "1.0.81"
+env_logger = "0.11.3"
+libc = "0.2.153"
+log = "0.4.21"
+nostr-sdk = "0.29.0"
+ractor = "0.9.7"
+tokio = { version = "1.36.0", features = ["full"] }
+tokio-util = { version = "0.7.10", features = ["rt"] }
+tracing = "0.1.40"
+tracing-subscriber = { version = "0.3.18", features = ["env-filter"] }

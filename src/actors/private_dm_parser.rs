@@ -1,0 +1,147 @@
+use crate::actors::messages::PrivateDMParserMessage;
+use anyhow::Result;
+use nostr_sdk::prelude::*;
+use ractor::{Actor, ActorProcessingErr, ActorRef, OutputPort};
+use tracing::{error, info};
+
+/// A `PrivateDMParser` actor responsible for parsing private direct messages and subscribing
+/// to parsed messages.
+pub struct PrivateDMParser;
+pub struct State {
+    keys: Keys,                                     // Keys used for decrypting messages.
+    message_parsed_output_port: OutputPort<String>, // Port for publishing parsed messages.
+}
+
+#[ractor::async_trait]
+impl Actor for PrivateDMParser {
+    type Msg = PrivateDMParserMessage; // Defines message types handled by this actor.
+    type State = State; // State containing keys and output port.
+    type Arguments = Keys; // Actor initialization arguments, here the decryption keys.
+
+    /// Prepares actor before starting, initializing its state with provided keys and a new output port.
+    async fn pre_start(
+        &self,
+        _myself: ActorRef<Self::Msg>,
+        keys: Keys,
+    ) -> Result<Self::State, ActorProcessingErr> {
+        let message_parsed_output_port = OutputPort::<String>::default();
+        Ok(State {
+            keys,
+            message_parsed_output_port,
+        })
+    }
+
+    /// Handles incoming messages for the actor.
+    async fn handle(
+        &self,
+        _myself: ActorRef<Self::Msg>,
+        message: Self::Msg,
+        state: &mut Self::State,
+    ) -> Result<(), ActorProcessingErr> {
+        match message {
+            // Decrypts and forwards private messages to the output port.
+            PrivateDMParserMessage::Parse(event) => {
+                let unwrapped_gift = match extract_rumor(&state.keys, &event) {
+                    Ok(gift) => gift,
+                    Err(e) => {
+                        error!("Error extracting rumor: {}", e);
+                        return Ok(());
+                    }
+                };
+                info!("Parsed event content: {}", unwrapped_gift.rumor.content);
+                state
+                    .message_parsed_output_port
+                    .send(unwrapped_gift.rumor.content);
+            }
+
+            // Subscribes a new actor to receive parsed messages through the output port.
+            PrivateDMParserMessage::SubscribeToEventReceived(subscriber) => {
+                subscriber.subscribe_to_port(&state.message_parsed_output_port);
+            }
+        }
+        Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::actors::test_actor::TestActor;
+    use crate::actors::Subscribable;
+    use anyhow::{Context, Result};
+    use ractor::{cast, Actor};
+    use std::sync::Arc;
+    use tokio::sync::Mutex;
+    use tokio::time::Duration;
+
+    #[tokio::test]
+    async fn test_private_dm_parser() -> Result<()> {
+        let receiver_secret = "feef9c2dcd6a1175a97dfbde700fa54f58ce69d4f30963f70efcc7257636759f";
+        let receiver_keys =
+            Keys::parse(receiver_secret).context("Error creating keys from secret")?;
+        let receiver_pubkey = receiver_keys.public_key();
+
+        let sender_secret = "51ce70ac70753e62f9baf4a8ce5e1334c30360ab14783016775ecb42dc322571";
+        let sender_keys = Keys::parse(sender_secret).context("Error creating keys from secret")?;
+        println!("Sender pubkey: {}", sender_keys.public_key().to_string());
+
+        let event =
+            create_private_dm_message("Hello world", &sender_keys, &receiver_pubkey).await?;
+
+        let published_messages = Arc::new(Mutex::new(Vec::new()));
+        let (publisher_actor_ref, publisher_handle) =
+            Actor::spawn(None, TestActor, published_messages.clone()).await?;
+
+        let (parser_actor_ref, parser_handle) =
+            Actor::spawn(None, PrivateDMParser, receiver_keys).await?;
+
+        cast!(
+            parser_actor_ref,
+            PrivateDMParserMessage::SubscribeToEventReceived(publisher_actor_ref.subscriber())
+        )?;
+
+        cast!(parser_actor_ref, PrivateDMParserMessage::Parse(event))?;
+
+        tokio::spawn(async move {
+            tokio::time::sleep(Duration::from_secs(1)).await;
+            parser_actor_ref.stop(None);
+            publisher_actor_ref.stop(None);
+        });
+        parser_handle.await?;
+        publisher_handle.await?;
+
+        assert!(matches!(
+            published_messages.lock().await.pop(),
+            Some(ref v) if v == "Hello world"
+        ));
+
+        Ok(())
+    }
+
+    // NOTE: This roughly creates a message as described by nip 17 but it's
+    // still not ready, just for testing purposes. There are more details that
+    // relate to created_at treatment and the nip itself is still not finished
+    // so be cautious
+    async fn create_private_dm_message(
+        message: &str,
+        sender_keys: &Keys,
+        receiver_pubkey: &PublicKey,
+    ) -> Result<Event> {
+        // Compose rumor
+        let kind_14_rumor = EventBuilder::sealed_direct(receiver_pubkey.clone(), message)
+            .to_unsigned_event(sender_keys.public_key());
+
+        // Compose seal
+        let content: String = NostrSigner::Keys(sender_keys.clone())
+            .nip44_encrypt(receiver_pubkey.clone(), kind_14_rumor.as_json())
+            .await?;
+        let kind_13_seal = EventBuilder::new(Kind::Seal, content, []).to_event(&sender_keys)?;
+
+        // Compose gift wrap
+        let kind_1059_gift_wrap: Event =
+            EventBuilder::gift_wrap_from_seal(&receiver_pubkey, &kind_13_seal, None)?;
+        println!("{}", kind_1059_gift_wrap.as_json());
+
+        Ok(kind_1059_gift_wrap)
+    }
+}
