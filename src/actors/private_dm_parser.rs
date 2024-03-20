@@ -72,48 +72,57 @@ mod tests {
     use ractor::{cast, Actor};
     use std::sync::Arc;
     use tokio::sync::Mutex;
-    use tokio::time::Duration;
+    use tokio::time::{sleep, Duration};
 
     #[tokio::test]
     async fn test_private_dm_parser() -> Result<()> {
-        let receiver_secret = "feef9c2dcd6a1175a97dfbde700fa54f58ce69d4f30963f70efcc7257636759f";
-        let receiver_keys =
-            Keys::parse(receiver_secret).context("Error creating keys from secret")?;
-        let receiver_pubkey = receiver_keys.public_key();
+        // Fake of course
+        let reportinator_secret =
+            "feef9c2dcd6a1175a97dfbde700fa54f58ce69d4f30963f70efcc7257636759f";
+        let reportinator_keys =
+            Keys::parse(reportinator_secret).context("Error creating keys from secret")?;
+        let receiver_pubkey = reportinator_keys.public_key();
 
         let sender_secret = "51ce70ac70753e62f9baf4a8ce5e1334c30360ab14783016775ecb42dc322571";
         let sender_keys = Keys::parse(sender_secret).context("Error creating keys from secret")?;
-        println!("Sender pubkey: {}", sender_keys.public_key().to_string());
 
-        let event =
-            create_private_dm_message("Hello world", &sender_keys, &receiver_pubkey).await?;
+        let bad_guy_keys = Keys::generate();
+        let event_to_report =
+            EventBuilder::text_note("I hate you!!", []).to_event(&bad_guy_keys)?;
+        let gift_wrapped_event =
+            create_private_dm_message(&event_to_report.as_json(), &sender_keys, &receiver_pubkey)
+                .await?;
 
         let published_messages = Arc::new(Mutex::new(Vec::new()));
         let (publisher_actor_ref, publisher_handle) =
             Actor::spawn(None, TestActor, published_messages.clone()).await?;
 
         let (parser_actor_ref, parser_handle) =
-            Actor::spawn(None, PrivateDMParser, receiver_keys).await?;
+            Actor::spawn(None, PrivateDMParser, reportinator_keys).await?;
 
         cast!(
             parser_actor_ref,
             PrivateDMParserMessage::SubscribeToEventReceived(publisher_actor_ref.subscriber())
         )?;
 
-        cast!(parser_actor_ref, PrivateDMParserMessage::Parse(event))?;
+        cast!(
+            parser_actor_ref,
+            PrivateDMParserMessage::Parse(gift_wrapped_event)
+        )?;
 
         tokio::spawn(async move {
-            tokio::time::sleep(Duration::from_secs(1)).await;
+            sleep(Duration::from_secs(1)).await;
             parser_actor_ref.stop(None);
             publisher_actor_ref.stop(None);
         });
+
         parser_handle.await?;
         publisher_handle.await?;
 
-        assert!(matches!(
+        assert_eq!(
             published_messages.lock().await.pop(),
-            Some(ref v) if v == "Hello world"
-        ));
+            Some(event_to_report.as_json())
+        );
 
         Ok(())
     }
@@ -140,7 +149,6 @@ mod tests {
         // Compose gift wrap
         let kind_1059_gift_wrap: Event =
             EventBuilder::gift_wrap_from_seal(&receiver_pubkey, &kind_13_seal, None)?;
-        println!("{}", kind_1059_gift_wrap.as_json());
 
         Ok(kind_1059_gift_wrap)
     }
