@@ -81,6 +81,34 @@ impl Actor for GiftUnwrapper {
     }
 }
 
+// NOTE: This roughly creates a message as described by nip 17 but it's still
+// not ready, just for testing purposes. There are more details to consider to
+// properly implement the nip like created_at treatment. The nip itself is not
+// finished at this time so hopefully in the future this can be done through the
+// nostr crate.
+#[allow(dead_code)]
+pub async fn create_private_dm_message(
+    message: &str,
+    sender_keys: &Keys,
+    receiver_pubkey: &PublicKey,
+) -> Result<Event> {
+    // Compose rumor
+    let kind_14_rumor = EventBuilder::sealed_direct(receiver_pubkey.clone(), message)
+        .to_unsigned_event(sender_keys.public_key());
+
+    // Compose seal
+    let content: String = NostrSigner::Keys(sender_keys.clone())
+        .nip44_encrypt(receiver_pubkey.clone(), kind_14_rumor.as_json())
+        .await?;
+    let kind_13_seal = EventBuilder::new(Kind::Seal, content, []).to_event(&sender_keys)?;
+
+    // Compose gift wrap
+    let kind_1059_gift_wrap: Event =
+        EventBuilder::gift_wrap_from_seal(&receiver_pubkey, &kind_13_seal, None)?;
+
+    Ok(kind_1059_gift_wrap)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -144,31 +172,5 @@ mod tests {
         assert_eq!(published_messages.lock().await.pop(), Some(event_to_report));
 
         Ok(())
-    }
-
-    // NOTE: This roughly creates a message as described by nip 17 but it's
-    // still not ready, just for testing purposes. There are more details that
-    // relate to created_at treatment and the nip itself is still not finished
-    // so be cautious
-    async fn create_private_dm_message(
-        message: &str,
-        sender_keys: &Keys,
-        receiver_pubkey: &PublicKey,
-    ) -> Result<Event> {
-        // Compose rumor
-        let kind_14_rumor = EventBuilder::sealed_direct(receiver_pubkey.clone(), message)
-            .to_unsigned_event(sender_keys.public_key());
-
-        // Compose seal
-        let content: String = NostrSigner::Keys(sender_keys.clone())
-            .nip44_encrypt(receiver_pubkey.clone(), kind_14_rumor.as_json())
-            .await?;
-        let kind_13_seal = EventBuilder::new(Kind::Seal, content, []).to_event(&sender_keys)?;
-
-        // Compose gift wrap
-        let kind_1059_gift_wrap: Event =
-            EventBuilder::gift_wrap_from_seal(&receiver_pubkey, &kind_13_seal, None)?;
-
-        Ok(kind_1059_gift_wrap)
     }
 }
