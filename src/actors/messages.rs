@@ -48,6 +48,10 @@ impl EventToReport {
     pub fn as_json(&self) -> String {
         self.0.as_json()
     }
+
+    pub fn id(&self) -> String {
+        self.0.id().to_string()
+    }
 }
 impl Display for EventToReport {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
@@ -61,7 +65,7 @@ pub enum EventEnqueuerMessage {
     SubscribeToEventEnqueued(Box<dyn OutputPortSubscriberTrait<InputMessage = EventToReport>>),
 }
 
-// How to subscribe to actors that publish Event messages like GiftUnwrapper
+// How to subscribe to actors that publish EventToReport messages like GiftUnwrapper
 impl From<EventToReport> for EventEnqueuerMessage {
     fn from(event_to_report: EventToReport) -> Self {
         EventEnqueuerMessage::Enqueue(event_to_report)

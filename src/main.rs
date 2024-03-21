@@ -54,14 +54,15 @@ async fn main() -> Result<()> {
         RelayEventDispatcherMessage::SubscribeToEventReceived(gift_unwrapper.subscriber())
     )?;
 
-    cast!(event_dispatcher, RelayEventDispatcherMessage::Connect)?;
-
     let event_enqueuer = manager.spawn_actor(EventEnqueuer, ()).await?;
 
     cast!(
         gift_unwrapper,
         GiftUnwrapperMessage::SubscribeToEventUnwrapped(event_enqueuer.subscriber())
     )?;
+
+    // Connect as the last message once everything is wired up
+    cast!(event_dispatcher, RelayEventDispatcherMessage::Connect)?;
 
     manager.wait().await.context("Failed to spawn actors")
 }

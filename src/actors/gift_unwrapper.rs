@@ -51,22 +51,23 @@ impl Actor for GiftUnwrapper {
 
                 match Event::from_json(&unwrapped_gift.rumor.content) {
                     Ok(event_to_report) => {
+                        info!(
+                            "Request from {} to moderate event {}",
+                            unwrapped_gift.sender,
+                            event_to_report.id()
+                        );
+
                         if let Err(e) = event_to_report.verify() {
                             error!("Error verifying event: {}", e);
                             return Ok(());
                         }
 
-                        info!(
-                            "Request from {:?} to moderate event {:?}",
-                            unwrapped_gift.sender,
-                            event_to_report.id()
-                        );
                         state
                             .message_parsed_output_port
                             .send(EventToReport::new(event_to_report))
                     }
                     Err(e) => {
-                        error!("Error parsing event: {}", e);
+                        error!("Error parsing event from {}, {}", unwrapped_gift.sender, e);
                     }
                 }
             }
