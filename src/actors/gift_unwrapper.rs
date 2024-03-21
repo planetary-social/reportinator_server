@@ -1,20 +1,19 @@
-use crate::actors::messages::PrivateDMParserMessage;
+use crate::actors::messages::GiftUnwrapperMessage;
 use anyhow::Result;
 use nostr_sdk::prelude::*;
 use ractor::{Actor, ActorProcessingErr, ActorRef, OutputPort};
 use tracing::{error, info};
 
-/// A `PrivateDMParser` actor responsible for parsing private direct messages and subscribing
-/// to parsed messages.
-pub struct PrivateDMParser;
+/// An actor responsible for opening gift wrapped private direct messages and grab the events to moderate
+pub struct GiftUnwrapper;
 pub struct State {
     keys: Keys,                                    // Keys used for decrypting messages.
     message_parsed_output_port: OutputPort<Event>, // Port for publishing the events to report parsed from gift wrapped payload
 }
 
 #[ractor::async_trait]
-impl Actor for PrivateDMParser {
-    type Msg = PrivateDMParserMessage; // Defines message types handled by this actor.
+impl Actor for GiftUnwrapper {
+    type Msg = GiftUnwrapperMessage; // Defines message types handled by this actor.
     type State = State; // State containing keys and output port.
     type Arguments = Keys; // Actor initialization arguments, here the decryption keys.
 
@@ -41,7 +40,7 @@ impl Actor for PrivateDMParser {
     ) -> Result<(), ActorProcessingErr> {
         match message {
             // Decrypts and forwards private messages to the output port.
-            PrivateDMParserMessage::Parse(event) => {
+            GiftUnwrapperMessage::Parse(event) => {
                 let unwrapped_gift = match extract_rumor(&state.keys, &event) {
                     Ok(gift) => gift,
                     Err(e) => {
@@ -71,7 +70,7 @@ impl Actor for PrivateDMParser {
             }
 
             // Subscribes a new actor to receive parsed messages through the output port.
-            PrivateDMParserMessage::SubscribeToEventReceived(subscriber) => {
+            GiftUnwrapperMessage::SubscribeToEventReceived(subscriber) => {
                 subscriber.subscribe_to_port(&state.message_parsed_output_port);
             }
         }
@@ -91,7 +90,7 @@ mod tests {
     use tokio::time::{sleep, Duration};
 
     #[tokio::test]
-    async fn test_private_dm_parser() -> Result<()> {
+    async fn test_gift_unwrapper() -> Result<()> {
         // Fake of course
         let reportinator_secret =
             "feef9c2dcd6a1175a97dfbde700fa54f58ce69d4f30963f70efcc7257636759f";
@@ -114,16 +113,16 @@ mod tests {
             Actor::spawn(None, TestActor, published_messages.clone()).await?;
 
         let (parser_actor_ref, parser_handle) =
-            Actor::spawn(None, PrivateDMParser, reportinator_keys).await?;
+            Actor::spawn(None, GiftUnwrapper, reportinator_keys).await?;
 
         cast!(
             parser_actor_ref,
-            PrivateDMParserMessage::SubscribeToEventReceived(publisher_actor_ref.subscriber())
+            GiftUnwrapperMessage::SubscribeToEventReceived(publisher_actor_ref.subscriber())
         )?;
 
         cast!(
             parser_actor_ref,
-            PrivateDMParserMessage::Parse(gift_wrapped_event)
+            GiftUnwrapperMessage::Parse(gift_wrapped_event)
         )?;
 
         tokio::spawn(async move {

@@ -1,8 +1,8 @@
 pub mod relay_event_dispatcher;
 pub use relay_event_dispatcher::RelayEventDispatcher;
 
-pub mod private_dm_parser;
-pub use private_dm_parser::PrivateDMParser;
+pub mod gift_unwrapper;
+pub use gift_unwrapper::GiftUnwrapper;
 
 pub mod test_actor;
 

@@ -11,14 +11,14 @@ pub enum RelayEventDispatcherMessage {
 }
 
 #[derive(Debug)]
-pub enum PrivateDMParserMessage {
+pub enum GiftUnwrapperMessage {
     Parse(Event),
     SubscribeToEventReceived(Box<dyn OutputPortSubscriberTrait<InputMessage = Event>>),
 }
 
-impl From<Event> for PrivateDMParserMessage {
+impl From<Event> for GiftUnwrapperMessage {
     fn from(event: Event) -> Self {
-        PrivateDMParserMessage::Parse(event)
+        GiftUnwrapperMessage::Parse(event)
     }
 }
 
