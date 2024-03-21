@@ -8,6 +8,7 @@ edition = "2021"
 [dependencies]
 anyhow = "1.0.81"
 env_logger = "0.11.3"
+gcloud-sdk = { version = "0.24.4", features = ["google-pubsub-v1"] }
 libc = "0.2.153"
 log = "0.4.21"
 nostr-sdk = "0.29.0"

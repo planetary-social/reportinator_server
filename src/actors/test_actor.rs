@@ -1,6 +1,5 @@
-use crate::actors::messages::TestActorMessage;
+use crate::actors::messages::{EventToReport, TestActorMessage};
 use anyhow::Result;
-use nostr_sdk::prelude::Event;
 use ractor::{Actor, ActorProcessingErr, ActorRef};
 use std::sync::Arc;
 use tokio::sync::Mutex;
@@ -8,19 +7,19 @@ use tokio::sync::Mutex;
 pub struct TestActor;
 
 pub struct TestActorState {
-    pub published_messages: Arc<Mutex<Vec<Event>>>,
+    pub published_messages: Arc<Mutex<Vec<EventToReport>>>,
 }
 
 #[ractor::async_trait]
 impl Actor for TestActor {
     type Msg = TestActorMessage;
     type State = TestActorState;
-    type Arguments = Arc<Mutex<Vec<Event>>>;
+    type Arguments = Arc<Mutex<Vec<EventToReport>>>;
 
     async fn pre_start(
         &self,
         _: ActorRef<Self::Msg>,
-        published_messages: Arc<Mutex<Vec<Event>>>,
+        published_messages: Arc<Mutex<Vec<EventToReport>>>,
     ) -> Result<Self::State, ActorProcessingErr> {
         let state = TestActorState { published_messages };
 

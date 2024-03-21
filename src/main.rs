@@ -12,9 +12,7 @@ use crate::actors::messages::GiftUnwrapperMessage;
 use crate::actors::messages::RelayEventDispatcherMessage;
 use crate::actors::Subscribable;
 
-use crate::actors::GiftUnwrapper;
-use crate::actors::LogActor;
-use crate::actors::RelayEventDispatcher;
+use crate::actors::{EventEnqueuer, GiftUnwrapper, RelayEventDispatcher};
 
 use crate::service_manager::ServiceManager;
 
@@ -58,11 +56,11 @@ async fn main() -> Result<()> {
 
     cast!(event_dispatcher, RelayEventDispatcherMessage::Connect)?;
 
-    let stdout_actor = manager.spawn_actor(LogActor, ()).await?;
+    let event_enqueuer = manager.spawn_actor(EventEnqueuer, ()).await?;
 
     cast!(
         gift_unwrapper,
-        GiftUnwrapperMessage::SubscribeToEventReceived(stdout_actor.subscriber())
+        GiftUnwrapperMessage::SubscribeToEventUnwrapped(event_enqueuer.subscriber())
     )?;
 
     manager.wait().await.context("Failed to spawn actors")

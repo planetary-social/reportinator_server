@@ -1,4 +1,4 @@
-use crate::actors::messages::GiftUnwrapperMessage;
+use crate::actors::messages::{EventToReport, GiftUnwrapperMessage};
 use anyhow::Result;
 use nostr_sdk::prelude::*;
 use ractor::{Actor, ActorProcessingErr, ActorRef, OutputPort};
@@ -7,8 +7,8 @@ use tracing::{error, info};
 /// An actor responsible for opening gift wrapped private direct messages and grab the events to moderate
 pub struct GiftUnwrapper;
 pub struct State {
-    keys: Keys,                                    // Keys used for decrypting messages.
-    message_parsed_output_port: OutputPort<Event>, // Port for publishing the events to report parsed from gift wrapped payload
+    keys: Keys, // Keys used for decrypting messages.
+    message_parsed_output_port: OutputPort<EventToReport>, // Port for publishing the events to report parsed from gift wrapped payload
 }
 
 #[ractor::async_trait]
@@ -41,7 +41,7 @@ impl Actor for GiftUnwrapper {
         match message {
             // Decrypts and forwards private messages to the output port.
             GiftUnwrapperMessage::Parse(event) => {
-                let unwrapped_gift = match extract_rumor(&state.keys, &event) {
+                let unwrapped_gift = match event.extract_rumor(&state.keys) {
                     Ok(gift) => gift,
                     Err(e) => {
                         error!("Error extracting rumor: {}", e);
@@ -61,7 +61,9 @@ impl Actor for GiftUnwrapper {
                             unwrapped_gift.sender,
                             event_to_report.id()
                         );
-                        state.message_parsed_output_port.send(event_to_report)
+                        state
+                            .message_parsed_output_port
+                            .send(EventToReport::new(event_to_report))
                     }
                     Err(e) => {
                         error!("Error parsing event: {}", e);
@@ -70,7 +72,7 @@ impl Actor for GiftUnwrapper {
             }
 
             // Subscribes a new actor to receive parsed messages through the output port.
-            GiftUnwrapperMessage::SubscribeToEventReceived(subscriber) => {
+            GiftUnwrapperMessage::SubscribeToEventUnwrapped(subscriber) => {
                 subscriber.subscribe_to_port(&state.message_parsed_output_port);
             }
         }
@@ -81,6 +83,7 @@ impl Actor for GiftUnwrapper {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::actors::messages::GiftWrap;
     use crate::actors::test_actor::TestActor;
     use crate::actors::Subscribable;
     use anyhow::{Context, Result};
@@ -102,11 +105,14 @@ mod tests {
         let sender_keys = Keys::parse(sender_secret).context("Error creating keys from secret")?;
 
         let bad_guy_keys = Keys::generate();
-        let event_to_report =
-            EventBuilder::text_note("I hate you!!", []).to_event(&bad_guy_keys)?;
-        let gift_wrapped_event =
+        let event_to_report = EventToReport::new(
+            EventBuilder::text_note("I hate you!!", []).to_event(&bad_guy_keys)?,
+        );
+
+        let gift_wrapped_event = GiftWrap::new(
             create_private_dm_message(&event_to_report.as_json(), &sender_keys, &receiver_pubkey)
-                .await?;
+                .await?,
+        );
 
         let published_messages = Arc::new(Mutex::new(Vec::new()));
         let (publisher_actor_ref, publisher_handle) =
@@ -117,7 +123,7 @@ mod tests {
 
         cast!(
             parser_actor_ref,
-            GiftUnwrapperMessage::SubscribeToEventReceived(publisher_actor_ref.subscriber())
+            GiftUnwrapperMessage::SubscribeToEventUnwrapped(publisher_actor_ref.subscriber())
         )?;
 
         cast!(

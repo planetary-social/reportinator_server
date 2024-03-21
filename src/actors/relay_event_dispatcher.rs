@@ -6,11 +6,13 @@ use ractor::{cast, concurrency::Duration, Actor, ActorProcessingErr, ActorRef, O
 use tokio_util::sync::CancellationToken;
 use tracing::{debug, error, info};
 
+use super::messages::GiftWrap;
+
 pub struct RelayEventDispatcher;
 pub struct State {
     relays: Vec<String>,
     filters: Vec<Filter>,
-    event_received_output_port: OutputPort<Event>,
+    event_received_output_port: OutputPort<GiftWrap>,
     subscription_task_manager: Option<ServiceManager>,
 }
 
@@ -49,7 +51,7 @@ impl Actor for RelayEventDispatcher {
         _myself: ActorRef<Self::Msg>,
         (relays, filters): (Vec<String>, Vec<Filter>),
     ) -> Result<Self::State, ActorProcessingErr> {
-        let event_received_output_port = OutputPort::<Event>::default();
+        let event_received_output_port = OutputPort::default();
 
         let state = State {
             relays,
@@ -185,7 +187,7 @@ impl RelaySubscriptionWorker {
                 if let RelayPoolNotification::Event { event, .. } = notification {
                     cast!(
                         self.dispatcher_actor,
-                        RelayEventDispatcherMessage::EventReceived((*event).clone())
+                        RelayEventDispatcherMessage::EventReceived(GiftWrap::new(*event))
                     )
                     .expect("Failed to cast event to dispatcher");
                 }

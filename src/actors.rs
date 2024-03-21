@@ -4,10 +4,10 @@ pub use relay_event_dispatcher::RelayEventDispatcher;
 pub mod gift_unwrapper;
 pub use gift_unwrapper::GiftUnwrapper;
 
-pub mod test_actor;
+pub mod event_enqueuer;
+pub use event_enqueuer::EventEnqueuer;
 
-pub mod log_actor;
-pub use log_actor::LogActor;
+pub mod test_actor;
 
 pub mod messages;
 
