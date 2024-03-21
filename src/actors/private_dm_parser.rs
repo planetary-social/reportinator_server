@@ -2,7 +2,7 @@ use crate::actors::messages::PrivateDMParserMessage;
 use anyhow::Result;
 use nostr_sdk::prelude::*;
 use ractor::{Actor, ActorProcessingErr, ActorRef, OutputPort};
-use tracing::error;
+use tracing::{error, info};
 
 /// A `PrivateDMParser` actor responsible for parsing private direct messages and subscribing
 /// to parsed messages.
@@ -57,6 +57,11 @@ impl Actor for PrivateDMParser {
                             return Ok(());
                         }
 
+                        info!(
+                            "Request from {:?} to moderate event {:?}",
+                            unwrapped_gift.sender,
+                            event_to_report.id()
+                        );
                         state.message_parsed_output_port.send(event_to_report)
                     }
                     Err(e) => {

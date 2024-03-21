@@ -94,7 +94,6 @@ impl Actor for RelayEventDispatcher {
                 subscriber.subscribe_to_port(&state.event_received_output_port);
             }
             RelayEventDispatcherMessage::EventReceived(event) => {
-                info!("Sending event to subscribers");
                 state.event_received_output_port.send(event);
             }
         }

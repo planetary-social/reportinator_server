@@ -31,16 +31,14 @@ async fn main() -> Result<()> {
     let reportinator_keys =
         Keys::parse(reportinator_secret).context("Error creating keys from secret")?;
     let reportinator_public_key = reportinator_keys.public_key();
-    info!(
-        "Reportinator pubkey: {}",
-        reportinator_public_key.to_string()
-    );
-
     let relays = vec!["ws://localhost".to_string()];
     let gift_wrap_filter = vec![Filter::new()
         .pubkey(reportinator_public_key)
         .kind(Kind::GiftWrap)];
-    info!("Gift wrap filter: {:?}", gift_wrap_filter);
+    info!(
+        "Listening for gift wrapped report requests: {:?}",
+        gift_wrap_filter
+    );
 
     let kind17_dispatcher = manager
         .spawn_actor(RelayEventDispatcher, (relays, gift_wrap_filter))
