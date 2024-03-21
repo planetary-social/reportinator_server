@@ -51,7 +51,14 @@ impl Actor for PrivateDMParser {
                 };
 
                 match Event::from_json(&unwrapped_gift.rumor.content) {
-                    Ok(event_to_report) => state.message_parsed_output_port.send(event_to_report),
+                    Ok(event_to_report) => {
+                        if let Err(e) = event_to_report.verify() {
+                            error!("Error verifying event: {}", e);
+                            return Ok(());
+                        }
+
+                        state.message_parsed_output_port.send(event_to_report)
+                    }
                     Err(e) => {
                         error!("Error parsing event: {}", e);
                     }
