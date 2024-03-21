@@ -40,7 +40,7 @@ impl Actor for GiftUnwrapper {
     ) -> Result<(), ActorProcessingErr> {
         match message {
             // Decrypts and forwards private messages to the output port.
-            GiftUnwrapperMessage::Parse(event) => {
+            GiftUnwrapperMessage::UnwrapEvent(event) => {
                 let unwrapped_gift = match event.extract_rumor(&state.keys) {
                     Ok(gift) => gift,
                     Err(e) => {
@@ -114,7 +114,7 @@ mod tests {
     use super::*;
     use crate::actors::messages::GiftWrap;
     use crate::actors::test_actor::TestActor;
-    use crate::actors::Subscribable;
+    use crate::actors::OutputPortSubscriberCreator;
     use anyhow::{Context, Result};
     use ractor::{cast, Actor};
     use std::sync::Arc;
@@ -157,7 +157,7 @@ mod tests {
 
         cast!(
             parser_actor_ref,
-            GiftUnwrapperMessage::Parse(gift_wrapped_event)
+            GiftUnwrapperMessage::UnwrapEvent(gift_wrapped_event)
         )?;
 
         tokio::spawn(async move {

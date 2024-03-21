@@ -16,28 +16,34 @@ use std::fmt::Debug;
 
 use ractor::ActorRef;
 
-pub trait Subscribable<InputMessage> {
-    type OutputMessage: Message;
-    fn subscriber(&self) -> Box<OutputSubscriber<InputMessage, Self::OutputMessage>>;
+pub trait OutputPortSubscriberTrait: Send + Debug {
+    type InputMessage: Message + Clone;
+
+    fn subscribe_to_port(&self, port: &ractor::OutputPort<Self::InputMessage>);
 }
 
-impl<I, O> Subscribable<I> for ActorRef<O>
+pub type OutputPortSubscriber<T> = Box<dyn OutputPortSubscriberTrait<InputMessage = T>>;
+pub trait OutputPortSubscriberCreator<InputMessage> {
+    fn subscriber(&self) -> OutputPortSubscriber<InputMessage>;
+}
+
+impl<I, O> OutputPortSubscriberCreator<I> for ActorRef<O>
 where
-    I: Message,
-    O: Message + From<I>,
+    I: Message + Clone + Debug,
+    O: Message + From<I> + Debug,
 {
-    type OutputMessage = O;
-    fn subscriber(&self) -> Box<OutputSubscriber<I, O>> {
-        Box::new(OutputSubscriber::<I, O>::new(self.clone()))
+    fn subscriber(&self) -> OutputPortSubscriber<I> {
+        Box::new(OutputPortSubscriberActorRef::new(self.clone()))
     }
 }
 
 #[derive(Debug)]
-pub struct OutputSubscriber<InputMessage, OutputMessage> {
+pub struct OutputPortSubscriberActorRef<InputMessage, OutputMessage> {
     actor_ref: ActorRef<OutputMessage>,
     _phantom: std::marker::PhantomData<InputMessage>,
 }
-impl<InputMessage, OutputMessage> OutputSubscriber<InputMessage, OutputMessage>
+
+impl<InputMessage, OutputMessage> OutputPortSubscriberActorRef<InputMessage, OutputMessage>
 where
     InputMessage: Message,
     OutputMessage: Message + From<InputMessage>,
@@ -55,7 +61,7 @@ where
 }
 
 impl<InputMessage, OutputMessage> OutputPortSubscriberTrait
-    for OutputSubscriber<InputMessage, OutputMessage>
+    for OutputPortSubscriberActorRef<InputMessage, OutputMessage>
 where
     InputMessage: Message + Clone + Debug,
     OutputMessage: Message + From<InputMessage> + Debug,
@@ -65,9 +71,4 @@ where
     fn subscribe_to_port(&self, port: &ractor::OutputPort<Self::InputMessage>) {
         port.subscribe(self.actor_ref.clone(), |msg| Self::converter(msg));
     }
-}
-pub trait OutputPortSubscriberTrait: Send + Debug {
-    type InputMessage: Message + Clone;
-
-    fn subscribe_to_port(&self, port: &ractor::OutputPort<Self::InputMessage>);
 }

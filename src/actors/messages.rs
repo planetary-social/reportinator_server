@@ -1,4 +1,4 @@
-use crate::actors::OutputPortSubscriberTrait;
+use crate::actors::OutputPortSubscriber;
 use anyhow::{Context, Result};
 use nostr_sdk::prelude::*;
 use std::fmt::{Debug, Display, Formatter};
@@ -20,20 +20,20 @@ impl GiftWrap {
 pub enum RelayEventDispatcherMessage {
     Connect,
     Reconnect,
-    SubscribeToEventReceived(Box<dyn OutputPortSubscriberTrait<InputMessage = GiftWrap>>),
+    SubscribeToEventReceived(OutputPortSubscriber<GiftWrap>),
     EventReceived(GiftWrap),
 }
 
 #[derive(Debug)]
 pub enum GiftUnwrapperMessage {
-    Parse(GiftWrap),
-    SubscribeToEventUnwrapped(Box<dyn OutputPortSubscriberTrait<InputMessage = EventToReport>>),
+    UnwrapEvent(GiftWrap),
+    SubscribeToEventUnwrapped(OutputPortSubscriber<EventToReport>),
 }
 
 // How to subscribe to actors that publish Event messages like RelayEventDispatcher
 impl From<GiftWrap> for GiftUnwrapperMessage {
     fn from(gift_wrap: GiftWrap) -> Self {
-        GiftUnwrapperMessage::Parse(gift_wrap)
+        GiftUnwrapperMessage::UnwrapEvent(gift_wrap)
     }
 }
 
@@ -62,7 +62,7 @@ impl Display for EventToReport {
 #[derive(Debug)]
 pub enum EventEnqueuerMessage {
     Enqueue(EventToReport),
-    SubscribeToEventEnqueued(Box<dyn OutputPortSubscriberTrait<InputMessage = EventToReport>>),
+    SubscribeToEventEnqueued(OutputPortSubscriber<EventToReport>),
 }
 
 // How to subscribe to actors that publish EventToReport messages like GiftUnwrapper

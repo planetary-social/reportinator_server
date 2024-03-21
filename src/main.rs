@@ -11,7 +11,7 @@ use tracing_subscriber::{fmt, prelude::*, EnvFilter};
 
 use crate::actors::messages::GiftUnwrapperMessage;
 use crate::actors::messages::RelayEventDispatcherMessage;
-use crate::actors::Subscribable;
+use crate::actors::OutputPortSubscriberCreator;
 
 use crate::actors::{EventEnqueuer, GiftUnwrapper, RelayEventDispatcher};
 
