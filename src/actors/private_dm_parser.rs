@@ -2,14 +2,14 @@ use crate::actors::messages::PrivateDMParserMessage;
 use anyhow::Result;
 use nostr_sdk::prelude::*;
 use ractor::{Actor, ActorProcessingErr, ActorRef, OutputPort};
-use tracing::{error, info};
+use tracing::error;
 
 /// A `PrivateDMParser` actor responsible for parsing private direct messages and subscribing
 /// to parsed messages.
 pub struct PrivateDMParser;
 pub struct State {
-    keys: Keys,                                     // Keys used for decrypting messages.
-    message_parsed_output_port: OutputPort<String>, // Port for publishing parsed messages.
+    keys: Keys,                                    // Keys used for decrypting messages.
+    message_parsed_output_port: OutputPort<Event>, // Port for publishing the events to report parsed from gift wrapped payload
 }
 
 #[ractor::async_trait]
@@ -24,7 +24,8 @@ impl Actor for PrivateDMParser {
         _myself: ActorRef<Self::Msg>,
         keys: Keys,
     ) -> Result<Self::State, ActorProcessingErr> {
-        let message_parsed_output_port = OutputPort::<String>::default();
+        let message_parsed_output_port = OutputPort::default();
+
         Ok(State {
             keys,
             message_parsed_output_port,
@@ -48,10 +49,13 @@ impl Actor for PrivateDMParser {
                         return Ok(());
                     }
                 };
-                info!("Parsed event content: {}", unwrapped_gift.rumor.content);
-                state
-                    .message_parsed_output_port
-                    .send(unwrapped_gift.rumor.content);
+
+                match Event::from_json(&unwrapped_gift.rumor.content) {
+                    Ok(event_to_report) => state.message_parsed_output_port.send(event_to_report),
+                    Err(e) => {
+                        error!("Error parsing event: {}", e);
+                    }
+                }
             }
 
             // Subscribes a new actor to receive parsed messages through the output port.
@@ -119,10 +123,7 @@ mod tests {
         parser_handle.await?;
         publisher_handle.await?;
 
-        assert_eq!(
-            published_messages.lock().await.pop(),
-            Some(event_to_report.as_json())
-        );
+        assert_eq!(published_messages.lock().await.pop(), Some(event_to_report));
 
         Ok(())
     }

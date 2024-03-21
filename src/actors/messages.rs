@@ -1,6 +1,5 @@
 use crate::actors::OutputPortSubscriberTrait;
-use nostr_sdk::prelude::Event;
-use nostr_sdk::JsonUtil;
+use nostr_sdk::prelude::*;
 use std::fmt::Debug;
 
 #[derive(Debug)]
@@ -14,7 +13,7 @@ pub enum RelayEventDispatcherMessage {
 #[derive(Debug)]
 pub enum PrivateDMParserMessage {
     Parse(Event),
-    SubscribeToEventReceived(Box<dyn OutputPortSubscriberTrait<InputMessage = String>>),
+    SubscribeToEventReceived(Box<dyn OutputPortSubscriberTrait<InputMessage = Event>>),
 }
 
 impl From<Event> for PrivateDMParserMessage {
@@ -25,18 +24,12 @@ impl From<Event> for PrivateDMParserMessage {
 
 #[derive(Debug, Clone)]
 pub enum TestActorMessage {
-    EventHappened(String),
-}
-
-impl From<String> for TestActorMessage {
-    fn from(s: String) -> Self {
-        TestActorMessage::EventHappened(s)
-    }
+    EventHappened(Event),
 }
 
 impl From<Event> for TestActorMessage {
     fn from(event: Event) -> Self {
-        TestActorMessage::EventHappened(event.as_json())
+        TestActorMessage::EventHappened(event)
     }
 }
 
@@ -45,8 +38,8 @@ pub enum LogActorMessage {
     Info(String),
 }
 
-impl From<String> for LogActorMessage {
-    fn from(s: String) -> Self {
-        LogActorMessage::Info(s)
+impl From<Event> for LogActorMessage {
+    fn from(event: Event) -> Self {
+        LogActorMessage::Info(event.as_json())
     }
 }
