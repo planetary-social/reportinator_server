@@ -85,11 +85,14 @@ impl Actor for RelayEventDispatcher {
         debug!("Handling message: {:?}", message);
         match message {
             RelayEventDispatcherMessage::Connect => {
-                self.handle_connection(myself, state, "Connecting").await?;
+                if let Err(e) = self.handle_connection(myself, state, "Connecting").await {
+                    error!("Failed to connect: {}", e);
+                }
             }
             RelayEventDispatcherMessage::Reconnect => {
-                self.handle_connection(myself, state, "Reconnecting")
-                    .await?;
+                if let Err(e) = self.handle_connection(myself, state, "Reconnecting").await {
+                    error!("Failed to reconnect: {}", e);
+                }
             }
             RelayEventDispatcherMessage::SubscribeToEventReceived(subscriber) => {
                 info!("Subscribing: {:?} to {:?}", subscriber, myself.get_name());

@@ -62,7 +62,6 @@ impl Display for EventToReport {
 #[derive(Debug)]
 pub enum EventEnqueuerMessage {
     Enqueue(EventToReport),
-    SubscribeToEventEnqueued(OutputPortSubscriber<EventToReport>),
 }
 
 // How to subscribe to actors that publish EventToReport messages like GiftUnwrapper

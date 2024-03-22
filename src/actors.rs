@@ -5,7 +5,7 @@ pub mod gift_unwrapper;
 pub use gift_unwrapper::GiftUnwrapper;
 
 pub mod event_enqueuer;
-pub use event_enqueuer::EventEnqueuer;
+pub use event_enqueuer::{EventEnqueuer, GooglePublisher};
 
 pub mod test_actor;
 

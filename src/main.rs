@@ -2,18 +2,17 @@ mod actors;
 mod service_manager;
 
 use anyhow::{Context, Result};
-use log::warn;
 use nostr_sdk::prelude::*;
 use ractor::cast;
 use std::env;
 use tracing::info;
 use tracing_subscriber::{fmt, prelude::*, EnvFilter};
 
-use crate::actors::messages::GiftUnwrapperMessage;
-use crate::actors::messages::RelayEventDispatcherMessage;
-use crate::actors::OutputPortSubscriberCreator;
-
-use crate::actors::{EventEnqueuer, GiftUnwrapper, RelayEventDispatcher};
+use crate::actors::{
+    messages::{GiftUnwrapperMessage, RelayEventDispatcherMessage},
+    EventEnqueuer, GiftUnwrapper, GooglePublisher, OutputPortSubscriberCreator,
+    RelayEventDispatcher,
+};
 
 use crate::service_manager::ServiceManager;
 
@@ -24,23 +23,20 @@ async fn main() -> Result<()> {
         .with(EnvFilter::from_default_env())
         .init();
 
-    let reportinator_secret = if let Ok(secret) = env::var("REPORTINATOR_SECRET") {
-        secret
-    } else {
-        // Its pubkey is 2ddc92121b9e67172cc0d40b959c416173a3533636144ebc002b7719d8d1c4e3
-        warn!("REPORTINATOR_SECRET not set, using test secret");
-        "feef9c2dcd6a1175a97dfbde700fa54f58ce69d4f30963f70efcc7257636759f".to_string()
+    let Ok(reportinator_secret) = env::var("REPORTINATOR_SECRET") else {
+        return Err(anyhow::anyhow!("REPORTINATOR_SECRET env variable not set"));
     };
 
     let reportinator_keys =
         Keys::parse(reportinator_secret).context("Error creating keys from secret")?;
     let reportinator_public_key = reportinator_keys.public_key();
-    let relays = get_relays();
+    let relays = get_relays()?;
 
     //TODO: We should probably also filter through `since`
     let gift_wrap_filter = vec![Filter::new()
         .pubkey(reportinator_public_key)
         .kind(Kind::GiftWrap)];
+
     info!(
         "Listening for gift wrapped report requests: {:?}",
         gift_wrap_filter
@@ -62,7 +58,10 @@ async fn main() -> Result<()> {
         RelayEventDispatcherMessage::SubscribeToEventReceived(gift_unwrapper.subscriber())
     )?;
 
-    let event_enqueuer = manager.spawn_actor(EventEnqueuer, ()).await?;
+    let google_publisher = GooglePublisher::create().await?;
+    let event_enqueuer = manager
+        .spawn_actor(EventEnqueuer::default(), google_publisher)
+        .await?;
 
     cast!(
         gift_unwrapper,
@@ -75,16 +74,21 @@ async fn main() -> Result<()> {
     manager.wait().await.context("Failed to spawn actors")
 }
 
-fn get_relays() -> Vec<String> {
-    match env::var("RELAY_ADDRESSES") {
-        Ok(value) if !value.trim().is_empty() => {
-            let relays = value.split(',').map(|s| s.trim().to_string()).collect();
-            info!("Using relays: {:?}", relays);
-            relays
-        }
-        _ => {
-            warn!("RELAY_ADDRESSES not set, using default relay");
-            vec!["ws://localhost".to_string()]
-        }
+fn get_relays() -> Result<Vec<String>> {
+    let Ok(value) = env::var("RELAY_ADDRESSES_CSV") else {
+        return Err(anyhow::anyhow!("RELAY_ADDRESSES_CSV env variable not set"));
+    };
+
+    if value.trim().is_empty() {
+        return Err(anyhow::anyhow!("RELAY_ADDRESSES_CSV env variable is empty"));
     }
+
+    let relays = value
+        .trim()
+        .split(',')
+        .map(|s| s.trim().to_string())
+        .collect();
+
+    info!("Using relays: {:?}", relays);
+    Ok(relays)
 }
