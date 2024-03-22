@@ -10,8 +10,7 @@ use tracing_subscriber::{fmt, prelude::*, EnvFilter};
 
 use crate::actors::{
     messages::{GiftUnwrapperMessage, RelayEventDispatcherMessage},
-    EventEnqueuer, GiftUnwrapper, GooglePublisher, OutputPortSubscriberCreator,
-    RelayEventDispatcher,
+    EventEnqueuer, GiftUnwrapper, GooglePublisher, RelayEventDispatcher,
 };
 
 use crate::service_manager::ServiceManager;
@@ -55,7 +54,7 @@ async fn main() -> Result<()> {
 
     cast!(
         event_dispatcher,
-        RelayEventDispatcherMessage::SubscribeToEventReceived(gift_unwrapper.subscriber())
+        RelayEventDispatcherMessage::SubscribeToEventReceived(Box::new(gift_unwrapper.clone()))
     )?;
 
     let google_publisher = GooglePublisher::create().await?;
@@ -65,7 +64,7 @@ async fn main() -> Result<()> {
 
     cast!(
         gift_unwrapper,
-        GiftUnwrapperMessage::SubscribeToEventUnwrapped(event_enqueuer.subscriber())
+        GiftUnwrapperMessage::SubscribeToEventUnwrapped(Box::new(event_enqueuer))
     )?;
 
     // Connect as the last message once everything is wired up

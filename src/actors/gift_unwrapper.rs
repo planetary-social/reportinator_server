@@ -114,7 +114,6 @@ mod tests {
     use super::*;
     use crate::actors::messages::GiftWrap;
     use crate::actors::test_actor::TestActor;
-    use crate::actors::OutputPortSubscriberCreator;
     use anyhow::{Context, Result};
     use ractor::{cast, Actor};
     use std::sync::Arc;
@@ -152,7 +151,7 @@ mod tests {
 
         cast!(
             parser_actor_ref,
-            GiftUnwrapperMessage::SubscribeToEventUnwrapped(publisher_actor_ref.subscriber())
+            GiftUnwrapperMessage::SubscribeToEventUnwrapped(Box::new(publisher_actor_ref.clone()))
         )?;
 
         cast!(
