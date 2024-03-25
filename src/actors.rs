@@ -1,5 +1,5 @@
 pub mod relay_event_dispatcher;
-pub use relay_event_dispatcher::RelayEventDispatcher;
+pub use relay_event_dispatcher::{NostrSubscriber, RelayEventDispatcher, Subscribe};
 
 pub mod gift_unwrapper;
 pub use gift_unwrapper::GiftUnwrapper;

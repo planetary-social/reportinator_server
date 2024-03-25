@@ -10,7 +10,7 @@ use tracing_subscriber::{fmt, prelude::*, EnvFilter};
 
 use crate::actors::{
     messages::{GiftUnwrapperMessage, RelayEventDispatcherMessage},
-    EventEnqueuer, GiftUnwrapper, GooglePublisher, RelayEventDispatcher,
+    EventEnqueuer, GiftUnwrapper, GooglePublisher, NostrSubscriber, RelayEventDispatcher,
 };
 
 use crate::service_manager::ServiceManager;
@@ -44,8 +44,9 @@ async fn main() -> Result<()> {
     // Start actors and wire them together
     let mut manager = ServiceManager::new();
 
+    let nostr_client = NostrSubscriber::new(relays, gift_wrap_filter);
     let event_dispatcher = manager
-        .spawn_actor(RelayEventDispatcher, (relays, gift_wrap_filter))
+        .spawn_actor(RelayEventDispatcher::default(), nostr_client)
         .await?;
 
     let gift_unwrapper = manager
