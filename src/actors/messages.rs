@@ -4,7 +4,7 @@ use nostr_sdk::prelude::*;
 use std::fmt::{Debug, Display, Formatter};
 
 //Newtype
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct GiftWrap(Event);
 impl GiftWrap {
     pub fn new(event: Event) -> Self {
@@ -72,11 +72,11 @@ impl From<EventToReport> for EventEnqueuerMessage {
 }
 
 #[derive(Debug, Clone)]
-pub enum TestActorMessage {
-    EventHappened(EventToReport),
+pub enum TestActorMessage<T> {
+    EventHappened(T),
 }
 
-impl From<EventToReport> for TestActorMessage {
+impl From<EventToReport> for TestActorMessage<EventToReport> {
     fn from(event: EventToReport) -> Self {
         TestActorMessage::EventHappened(event)
     }

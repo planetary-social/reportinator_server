@@ -248,7 +248,7 @@ impl Subscribe for NostrSubscriber {
             })
             .await?;
 
-        // If it was not cancelled we want to retry
+        // If it was not cancelled we want to retry, so cancel manually and reconnect
         if !cancellation_token.is_cancelled() {
             cast!(dispatcher_actor, RelayEventDispatcherMessage::Reconnect)
                 .expect("Failed to cast reconnect message");
@@ -256,5 +256,123 @@ impl Subscribe for NostrSubscriber {
         }
 
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::actors::test_actor::TestActor;
+    use std::sync::Arc;
+    use tokio::sync::mpsc;
+    use tokio::sync::Mutex;
+
+    use super::*;
+
+    // TestNostrSubscriber is a fake implementation of the NostrSubscriber to
+    // fake interactions with the Nostr network.
+    #[derive(Clone)]
+    struct TestNostrSubscriber {
+        events_to_dispatch: Vec<Event>,
+        event_sender: mpsc::Sender<Option<Event>>,
+        event_receiver: Arc<Mutex<mpsc::Receiver<Option<Event>>>>,
+    }
+
+    impl TestNostrSubscriber {
+        pub fn new(events_to_dispatch: Vec<Event>) -> Self {
+            let (event_sender, event_receiver) = mpsc::channel(10);
+
+            Self {
+                events_to_dispatch,
+                event_sender,
+                event_receiver: Arc::new(Mutex::new(event_receiver)),
+            }
+        }
+
+        pub async fn next_event(&mut self) -> Result<()> {
+            if let Some(event) = self.events_to_dispatch.pop() {
+                self.event_sender.send(Some(event.clone())).await?;
+            }
+
+            Ok(())
+        }
+    }
+
+    #[async_trait]
+    impl Subscribe for TestNostrSubscriber {
+        async fn subscribe(
+            &self,
+            cancellation_token: CancellationToken,
+            dispatcher_actor: ActorRef<RelayEventDispatcherMessage>,
+        ) -> Result<(), anyhow::Error> {
+            let event_sender_clone = self.event_sender.clone();
+            tokio::spawn(async move {
+                cancellation_token.cancelled().await;
+                event_sender_clone.send(None).await.unwrap();
+            });
+
+            while let Some(Some(event)) = self.event_receiver.lock().await.recv().await {
+                cast!(
+                    dispatcher_actor,
+                    RelayEventDispatcherMessage::EventReceived(GiftWrap::new(event))
+                )
+                .expect("Failed to cast event to dispatcher");
+            }
+
+            Ok(())
+        }
+    }
+
+    #[tokio::test]
+    async fn test_relay_event_dispatcher() {
+        let first_event = EventBuilder::text_note("First event", [])
+            .to_event(&Keys::generate())
+            .unwrap();
+        let second_event = EventBuilder::text_note("Second event", [])
+            .to_event(&Keys::generate())
+            .unwrap();
+
+        // We pop the events so the order is reversed
+        let mut test_nostr_subscriber =
+            TestNostrSubscriber::new(vec![second_event.clone(), first_event.clone()]);
+
+        let (dispatcher_ref, dispatcher_handle) = Actor::spawn(
+            None,
+            RelayEventDispatcher::default(),
+            test_nostr_subscriber.clone(),
+        )
+        .await
+        .unwrap();
+
+        let received_messages = Arc::new(Mutex::new(Vec::<GiftWrap>::new()));
+
+        let (receiver_ref, receiver_handle) =
+            Actor::spawn(None, TestActor::default(), received_messages.clone())
+                .await
+                .unwrap();
+
+        cast!(
+            dispatcher_ref,
+            RelayEventDispatcherMessage::SubscribeToEventReceived(Box::new(receiver_ref.clone()))
+        )
+        .unwrap();
+
+        cast!(dispatcher_ref, RelayEventDispatcherMessage::Connect).unwrap();
+
+        test_nostr_subscriber.next_event().await.unwrap();
+        test_nostr_subscriber.next_event().await.unwrap();
+
+        tokio::spawn(async move {
+            tokio::time::sleep(Duration::from_secs(1)).await;
+            dispatcher_ref.stop(None);
+            receiver_ref.stop(None);
+        });
+
+        dispatcher_handle.await.unwrap();
+        receiver_handle.await.unwrap();
+
+        assert_eq!(
+            received_messages.lock().await.as_ref(),
+            [GiftWrap::new(first_event), GiftWrap::new(second_event)]
+        );
     }
 }

@@ -1,28 +1,40 @@
-use crate::actors::messages::{EventToReport, TestActorMessage};
 use anyhow::Result;
 use ractor::{Actor, ActorProcessingErr, ActorRef};
 use std::sync::Arc;
 use tokio::sync::Mutex;
 
-pub struct TestActor;
+pub type TestActorMessagesReceived<T> = Arc<Mutex<Vec<T>>>;
+pub struct TestActor<T> {
+    _phantom: std::marker::PhantomData<T>,
+}
 
-pub struct TestActorState {
-    pub published_messages: Arc<Mutex<Vec<EventToReport>>>,
+impl<T> Default for TestActor<T> {
+    fn default() -> Self {
+        Self {
+            _phantom: std::marker::PhantomData,
+        }
+    }
+}
+
+pub struct TestActorState<T> {
+    pub messages_received: TestActorMessagesReceived<T>,
 }
 
 #[ractor::async_trait]
-impl Actor for TestActor {
-    type Msg = TestActorMessage;
-    type State = TestActorState;
-    type Arguments = Arc<Mutex<Vec<EventToReport>>>;
+impl<T> Actor for TestActor<T>
+where
+    T: Send + Sync + 'static,
+{
+    type Msg = T;
+    type State = TestActorState<T>;
+    type Arguments = TestActorMessagesReceived<T>;
 
     async fn pre_start(
         &self,
         _: ActorRef<Self::Msg>,
-        published_messages: Arc<Mutex<Vec<EventToReport>>>,
+        messages_received: TestActorMessagesReceived<T>,
     ) -> Result<Self::State, ActorProcessingErr> {
-        let state = TestActorState { published_messages };
-
+        let state = TestActorState { messages_received };
         Ok(state)
     }
 
@@ -32,12 +44,7 @@ impl Actor for TestActor {
         message: Self::Msg,
         state: &mut Self::State,
     ) -> Result<(), ActorProcessingErr> {
-        match message {
-            TestActorMessage::EventHappened(event) => {
-                state.published_messages.lock().await.push(event);
-            }
-        }
-
+        state.messages_received.lock().await.push(message);
         Ok(())
     }
 }

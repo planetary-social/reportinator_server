@@ -113,63 +113,68 @@ pub async fn create_private_dm_message(
 mod tests {
     use super::*;
     use crate::actors::messages::GiftWrap;
-    use crate::actors::test_actor::TestActor;
-    use anyhow::{Context, Result};
+    use crate::actors::TestActor;
     use ractor::{cast, Actor};
     use std::sync::Arc;
     use tokio::sync::Mutex;
     use tokio::time::{sleep, Duration};
 
     #[tokio::test]
-    async fn test_gift_unwrapper() -> Result<()> {
+    async fn test_gift_unwrapper() {
         // Fake of course
         let reportinator_secret =
             "feef9c2dcd6a1175a97dfbde700fa54f58ce69d4f30963f70efcc7257636759f";
-        let reportinator_keys =
-            Keys::parse(reportinator_secret).context("Error creating keys from secret")?;
+        let reportinator_keys = Keys::parse(reportinator_secret).unwrap();
         let receiver_pubkey = reportinator_keys.public_key();
 
         let sender_secret = "51ce70ac70753e62f9baf4a8ce5e1334c30360ab14783016775ecb42dc322571";
-        let sender_keys = Keys::parse(sender_secret).context("Error creating keys from secret")?;
+        let sender_keys = Keys::parse(sender_secret).unwrap();
 
         let bad_guy_keys = Keys::generate();
         let event_to_report = EventToReport::new(
-            EventBuilder::text_note("I hate you!!", []).to_event(&bad_guy_keys)?,
+            EventBuilder::text_note("I hate you!!", [])
+                .to_event(&bad_guy_keys)
+                .unwrap(),
         );
 
         let gift_wrapped_event = GiftWrap::new(
             create_private_dm_message(&event_to_report.as_json(), &sender_keys, &receiver_pubkey)
-                .await?,
+                .await
+                .unwrap(),
         );
 
-        let published_messages = Arc::new(Mutex::new(Vec::new()));
-        let (publisher_actor_ref, publisher_handle) =
-            Actor::spawn(None, TestActor, published_messages.clone()).await?;
+        let messages_received = Arc::new(Mutex::new(Vec::<EventToReport>::new()));
+        let (receiver_actor_ref, receiver_actor_handle) =
+            Actor::spawn(None, TestActor::default(), messages_received.clone())
+                .await
+                .unwrap();
 
         let (parser_actor_ref, parser_handle) =
-            Actor::spawn(None, GiftUnwrapper, reportinator_keys).await?;
+            Actor::spawn(None, GiftUnwrapper, reportinator_keys)
+                .await
+                .unwrap();
 
         cast!(
             parser_actor_ref,
-            GiftUnwrapperMessage::SubscribeToEventUnwrapped(Box::new(publisher_actor_ref.clone()))
-        )?;
+            GiftUnwrapperMessage::SubscribeToEventUnwrapped(Box::new(receiver_actor_ref.clone()))
+        )
+        .unwrap();
 
         cast!(
             parser_actor_ref,
             GiftUnwrapperMessage::UnwrapEvent(gift_wrapped_event)
-        )?;
+        )
+        .unwrap();
 
         tokio::spawn(async move {
             sleep(Duration::from_secs(1)).await;
             parser_actor_ref.stop(None);
-            publisher_actor_ref.stop(None);
+            receiver_actor_ref.stop(None);
         });
 
-        parser_handle.await?;
-        publisher_handle.await?;
+        parser_handle.await.unwrap();
+        receiver_actor_handle.await.unwrap();
 
-        assert_eq!(published_messages.lock().await.pop(), Some(event_to_report));
-
-        Ok(())
+        assert_eq!(messages_received.lock().await.as_ref(), [event_to_report]);
     }
 }

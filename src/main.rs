@@ -29,22 +29,44 @@ async fn main() -> Result<()> {
     let reportinator_keys =
         Keys::parse(reportinator_secret).context("Error creating keys from secret")?;
     let reportinator_public_key = reportinator_keys.public_key();
-    let relays = get_relays()?;
 
     //TODO: We should probably also filter through `since`
     let gift_wrap_filter = vec![Filter::new()
         .pubkey(reportinator_public_key)
         .kind(Kind::GiftWrap)];
 
-    info!(
-        "Listening for gift wrapped report requests: {:?}",
-        gift_wrap_filter
-    );
-
-    // Start actors and wire them together
-    let mut manager = ServiceManager::new();
+    let relays = get_relays()?;
 
     let nostr_client = NostrSubscriber::new(relays, gift_wrap_filter);
+    let google_publisher = GooglePublisher::create().await?;
+
+    start_server(nostr_client, google_publisher, reportinator_keys).await
+}
+
+/// Starts the server by spawning actors and wiring them together
+///
+///     ┌───────────────┐                                  ┌────────────────┐
+///     │ Nostr Network │                                  │  nostr-events  │
+///     └───────────────┘                                  │  Pubsub Topic  │
+///             │                                          └────────────────┘
+///             │                                                   ▲
+/// ┌───────────┼───────────┐                                       │
+/// │           ▼           │                                       │
+/// │ ┌───────────────────┐ │                            ┌─────────────────────┐
+/// │ │  NostrSubscriber  │ │    ┌────────────────────┐  │ ┌─────────────────┐ │
+/// │ │                   │ │───▶│   GiftUnwrapper    │──┼▶│ GooglePublisher │ │
+/// │ └───────────────────┘ │    └────────────────────┘  │ └─────────────────┘ │
+/// │ RelayEventDispatcher  │                            │    EventEnqueuer    │
+/// └───────────────────────┘                            └─────────────────────┘
+///
+async fn start_server(
+    nostr_client: NostrSubscriber,
+    google_publisher: GooglePublisher,
+    reportinator_keys: Keys,
+) -> Result<()> {
+    let mut manager = ServiceManager::new();
+
+    // Spawn actors and wire them together
     let event_dispatcher = manager
         .spawn_actor(RelayEventDispatcher::default(), nostr_client)
         .await?;
@@ -58,7 +80,6 @@ async fn main() -> Result<()> {
         RelayEventDispatcherMessage::SubscribeToEventReceived(Box::new(gift_unwrapper.clone()))
     )?;
 
-    let google_publisher = GooglePublisher::create().await?;
     let event_enqueuer = manager
         .spawn_actor(EventEnqueuer::default(), google_publisher)
         .await?;
