@@ -1,19 +1,18 @@
 mod actors;
+mod adapters;
 mod service_manager;
-
+use crate::actors::{
+    messages::{GiftUnwrapperMessage, RelayEventDispatcherMessage},
+    EventEnqueuer, GiftUnwrapper, RelayEventDispatcher,
+};
+use crate::adapters::{GooglePublisher, HttpServer, NostrSubscriber};
+use crate::service_manager::ServiceManager;
 use anyhow::{Context, Result};
 use nostr_sdk::prelude::*;
 use ractor::cast;
 use std::env;
 use tracing::info;
 use tracing_subscriber::{fmt, prelude::*, EnvFilter};
-
-use crate::actors::{
-    messages::{GiftUnwrapperMessage, RelayEventDispatcherMessage},
-    EventEnqueuer, GiftUnwrapper, GooglePublisher, NostrSubscriber, RelayEventDispatcher,
-};
-
-use crate::service_manager::ServiceManager;
 
 #[tokio::main]
 async fn main() -> Result<()> {
@@ -37,10 +36,10 @@ async fn main() -> Result<()> {
 
     let relays = get_relays()?;
 
-    let nostr_client = NostrSubscriber::new(relays, gift_wrap_filter);
+    let nostr_subscriber = NostrSubscriber::new(relays, gift_wrap_filter);
     let google_publisher = GooglePublisher::create().await?;
 
-    start_server(nostr_client, google_publisher, reportinator_keys).await
+    start_server(nostr_subscriber, google_publisher, reportinator_keys).await
 }
 
 /// Starts the server by spawning actors and wiring them together
@@ -67,7 +66,7 @@ async fn main() -> Result<()> {
 ///   │ RelayEventDispatcher  │                           │    EventEnqueuer    │
 ///   └───────────────────────┘                           └─────────────────────┘
 async fn start_server(
-    nostr_client: NostrSubscriber,
+    nostr_subscriber: NostrSubscriber,
     google_publisher: GooglePublisher,
     reportinator_keys: Keys,
 ) -> Result<()> {
@@ -75,7 +74,7 @@ async fn start_server(
 
     // Spawn actors and wire them together
     let event_dispatcher = manager
-        .spawn_actor(RelayEventDispatcher::default(), nostr_client)
+        .spawn_actor(RelayEventDispatcher::default(), nostr_subscriber)
         .await?;
 
     let gift_unwrapper = manager
@@ -99,7 +98,12 @@ async fn start_server(
     // Connect as the last message once everything is wired up
     cast!(event_dispatcher, RelayEventDispatcherMessage::Connect)?;
 
-    manager.wait().await.context("Failed to spawn actors")
+    manager.spawn_service(HttpServer::run);
+
+    manager
+        .listen_stop_signals()
+        .await
+        .context("Failed to spawn actors")
 }
 
 fn get_relays() -> Result<Vec<String>> {

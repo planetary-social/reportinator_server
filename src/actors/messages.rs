@@ -1,4 +1,4 @@
-use crate::actors::OutputPortSubscriber;
+use crate::actors::utilities::OutputPortSubscriber;
 use anyhow::{Context, Result};
 use nostr_sdk::prelude::*;
 use std::fmt::{Debug, Display, Formatter};

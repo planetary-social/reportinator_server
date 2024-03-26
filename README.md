@@ -1,9 +1,6 @@
 # Reportinator Server
 
-This Rust-based server processes moderation requests for notes within the Nostr network. By examining direct messages sent to the Reportinator bot account, it determines whether to generate moderation reports. Utilizing the NIP-17 standard, it expects users to send gift-wrapped messages containing a serialized JSON payload of the event in question. Messages that are flagged result in the generation of a kind 1984 report, which can be accessed through wss://relay.nos.social, enabling clients to leverage these reports for moderation purposes.
-
-
-
+This Rust-based server processes moderation requests for Nostr notes. By examining direct messages sent to the [Reportinator bot account](https://njump.me/reportinator@nos.social), it determines whether to generate moderation reports. Utilizing the [NIP-17 standard](https://github.com/nostr-protocol/nips/pull/686), it expects users to send "gift-wrapped" messages containing a serialized JSON payload of the event in question. Messages that are flagged result in the generation of a [kind 1984 report](https://github.com/nostr-protocol/nips/blob/master/56.md), which can be accessed through `wss://relay.nos.social`, enabling clients to leverage these reports for moderation purposes.
 
 
 ## Implementation Details

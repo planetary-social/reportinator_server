@@ -141,7 +141,7 @@ impl ServiceManager {
     }
 
     // Wait until all actors and services are done
-    pub async fn wait(&self) -> Result<()> {
+    pub async fn listen_stop_signals(&self) -> Result<()> {
         #[cfg(unix)]
         let terminate = async {
             signal::unix::signal(signal::unix::SignalKind::terminate())
@@ -157,13 +157,13 @@ impl ServiceManager {
             _ = self.tracker.wait() => {},
             _ = signal::ctrl_c() => {
                 info!("Starting graceful termination, from ctrl-c");
-                self.stop().await;
             },
             _ = terminate => {
                 info!("Starting graceful termination, from terminate signal");
-                self.stop().await;
             },
         }
+
+        self.stop().await;
 
         Ok(())
     }

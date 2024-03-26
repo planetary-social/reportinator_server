@@ -1,12 +1,11 @@
+use super::messages::GiftWrap;
 use crate::actors::messages::RelayEventDispatcherMessage;
 use crate::service_manager::ServiceManager;
 use anyhow::Result;
 use nostr_sdk::prelude::*;
-use ractor::{cast, concurrency::Duration, Actor, ActorProcessingErr, ActorRef, OutputPort};
+use ractor::{Actor, ActorProcessingErr, ActorRef, OutputPort};
 use tokio_util::sync::CancellationToken;
 use tracing::{debug, error, info};
-
-use super::messages::GiftWrap;
 
 pub struct RelayEventDispatcher<T: Subscribe> {
     _phantom: std::marker::PhantomData<T>,
@@ -185,88 +184,14 @@ where
     }
 }
 
-#[derive(Clone)]
-pub struct NostrSubscriber {
-    relays: Vec<String>,
-    filters: Vec<Filter>,
-}
-impl NostrSubscriber {
-    pub fn new(relays: Vec<String>, filters: Vec<Filter>) -> Self {
-        Self { relays, filters }
-    }
-}
-
-#[async_trait]
-impl Subscribe for NostrSubscriber {
-    async fn subscribe(
-        &self,
-        cancellation_token: CancellationToken,
-        dispatcher_actor: ActorRef<RelayEventDispatcherMessage>,
-    ) -> std::prelude::v1::Result<(), anyhow::Error> {
-        let token_clone = cancellation_token.clone();
-        let opts = Options::new()
-            .wait_for_send(false)
-            .connection_timeout(Some(Duration::from_secs(5)))
-            .wait_for_subscription(true);
-
-        let client = ClientBuilder::new().opts(opts).build();
-
-        for relay in self.relays.iter() {
-            client.add_relay(relay.clone()).await?;
-        }
-
-        client.disconnect().await?;
-        client.connect().await;
-        client.subscribe(self.filters.clone(), None).await;
-
-        let client_clone = client.clone();
-        tokio::spawn(async move {
-            token_clone.cancelled().await;
-            debug!("Cancelling relay subscription worker");
-            if let Err(e) = client_clone.stop().await {
-                error!("Failed to stop client: {}", e);
-            }
-        });
-
-        debug!("Relay subscription worker started");
-        client
-            .handle_notifications(|notification| async {
-                if cancellation_token.is_cancelled() {
-                    return Ok(true);
-                }
-
-                if let RelayPoolNotification::Event { event, .. } = notification {
-                    cast!(
-                        dispatcher_actor,
-                        RelayEventDispatcherMessage::EventReceived(GiftWrap::new(*event))
-                    )
-                    .expect("Failed to cast event to dispatcher");
-                }
-
-                // True would exit from the loop
-                Ok(false)
-            })
-            .await?;
-
-        // If it was not cancelled we want to retry, so cancel manually and reconnect
-        if !cancellation_token.is_cancelled() {
-            cast!(dispatcher_actor, RelayEventDispatcherMessage::Reconnect)
-                .expect("Failed to cast reconnect message");
-            cancellation_token.cancel();
-        }
-
-        Ok(())
-    }
-}
-
 #[cfg(test)]
 mod tests {
-    use crate::actors::test_actor::TestActor;
+    use super::*;
+    use crate::actors::TestActor;
+    use ractor::{cast, concurrency::Duration};
     use std::sync::Arc;
     use tokio::sync::mpsc;
     use tokio::sync::Mutex;
-
-    use super::*;
 
     // TestNostrSubscriber is a fake implementation of the NostrSubscriber to
     // fake interactions with the Nostr network.

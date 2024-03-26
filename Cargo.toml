@@ -8,14 +8,18 @@ default-run = "reportinator_server"
 
 [dependencies]
 anyhow = "1.0.81"
+axum = "0.7.5"
 env_logger = "0.11.3"
 gcloud-sdk = { version = "0.24.4", features = ["google-pubsub-v1"] }
+handlebars = "5.1.2"
 libc = "0.2.153"
 log = "0.4.21"
 nostr-sdk = "0.29.0"
 ractor = "0.9.7"
+serde_json = "1.0.115"
 tokio = { version = "1.36.0", features = ["full"] }
 tokio-util = { version = "0.7.10", features = ["rt"] }
+tower-http = { version = "0.5.2", features = ["timeout", "trace"] }
 tracing = "0.1.40"
 tracing-subscriber = { version = "0.3.18", features = ["env-filter"] }
 

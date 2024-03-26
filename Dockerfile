@@ -65,8 +65,7 @@ USER appuser
 COPY --from=build /bin/server /bin/
 
 # Expose the port that the application listens on.
-# So we can add a /metrics endpoint or similar
-# EXPOSE 3000
+EXPOSE 3000
 
 # What the container should run when it is started.
 CMD ["/bin/server"]

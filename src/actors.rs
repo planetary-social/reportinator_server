@@ -1,18 +1,14 @@
 pub mod relay_event_dispatcher;
-pub use relay_event_dispatcher::{NostrSubscriber, RelayEventDispatcher};
+pub use relay_event_dispatcher::{RelayEventDispatcher, Subscribe};
 
 pub mod gift_unwrapper;
 pub use gift_unwrapper::GiftUnwrapper;
 
 pub mod event_enqueuer;
-pub use event_enqueuer::{EventEnqueuer, GooglePublisher};
+pub use event_enqueuer::{EventEnqueuer, PubsubPublisher};
 
-pub mod output_port_subscriber;
-pub use output_port_subscriber::OutputPortSubscriber;
-
+pub mod utilities;
 #[cfg(test)]
-pub mod test_actor;
-#[cfg(test)]
-pub use test_actor::TestActor;
+pub use utilities::TestActor;
 
 pub mod messages;

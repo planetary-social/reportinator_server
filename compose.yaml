@@ -16,12 +16,14 @@ services:
       - 3000:3000
     volumes:
       - ${HOME}/.config/gcloud/application_default_credentials.json:/app/gcloud/application_default_credentials.json
+      - ./templates:/app/templates
     environment:
       - RELAY_ADDRESSES_CSV=ws://host.docker.internal
         # A test secret. Its pubkey is 2ddc92121b9e67172cc0d40b959c416173a3533636144ebc002b7719d8d1c4e3
       - REPORTINATOR_SECRET=feef9c2dcd6a1175a97dfbde700fa54f58ce69d4f30963f70efcc7257636759f
       - GOOGLE_APPLICATION_CREDENTIALS=/app/gcloud/application_default_credentials.json
       - RUST_LOG=reportinator_server=info
+      - TEMPLATES_DIR=/app/templates
 
 # The commented out section below is an example of how to define a PostgreSQL
 # database that your application can use. `depends_on` tells Docker Compose to
