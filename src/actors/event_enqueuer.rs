@@ -13,7 +13,7 @@ use tracing::{error, info};
 pub struct EventEnqueuer<T: PubsubPublisher> {
     _phantom: std::marker::PhantomData<T>,
 }
-impl Default for EventEnqueuer<GooglePublisher> {
+impl<T: PubsubPublisher> Default for EventEnqueuer<T> {
     fn default() -> Self {
         Self {
             _phantom: std::marker::PhantomData,
@@ -116,5 +116,71 @@ where
         }
 
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use nostr_sdk::prelude::{EventBuilder, Keys};
+    use ractor::cast;
+    use std::sync::Arc;
+    use std::time::Duration;
+    use tokio::sync::Mutex;
+
+    #[derive(Clone)]
+    struct TestGooglePublisher {
+        published_events: Arc<Mutex<Vec<EventToReport>>>,
+    }
+    impl TestGooglePublisher {
+        fn new() -> Self {
+            Self {
+                published_events: Arc::new(Mutex::new(Vec::new())),
+            }
+        }
+    }
+
+    #[ractor::async_trait]
+    impl PubsubPublisher for TestGooglePublisher {
+        async fn publish_event(&mut self, event: &EventToReport) -> Result<()> {
+            self.published_events.lock().await.push(event.clone());
+            Ok(())
+        }
+    }
+
+    use super::*;
+    #[tokio::test]
+    async fn test_event_enqueuer() {
+        let test_google_publisher = TestGooglePublisher::new();
+
+        let (event_enqueuer_ref, event_enqueuer_handle) = Actor::spawn(
+            None,
+            EventEnqueuer::default(),
+            test_google_publisher.clone(),
+        )
+        .await
+        .unwrap();
+
+        let event_to_report = EventToReport::new(
+            EventBuilder::text_note("First event", [])
+                .to_event(&Keys::generate())
+                .unwrap(),
+        );
+        cast!(
+            event_enqueuer_ref,
+            EventEnqueuerMessage::Enqueue(event_to_report.clone())
+        )
+        .unwrap();
+
+        tokio::spawn(async move {
+            tokio::time::sleep(Duration::from_secs(1)).await;
+            event_enqueuer_ref.stop(None);
+        });
+
+        event_enqueuer_handle.await.unwrap();
+
+        assert_eq!(
+            test_google_publisher.published_events.lock().await.as_ref(),
+            [event_to_report]
+        );
     }
 }
