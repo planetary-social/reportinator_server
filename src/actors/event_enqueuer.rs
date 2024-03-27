@@ -1,5 +1,5 @@
 use crate::actors::messages::EventEnqueuerMessage;
-use crate::actors::messages::EventToReport;
+use crate::actors::messages::ReportRequest;
 use anyhow::Result;
 use ractor::{Actor, ActorProcessingErr, ActorRef};
 use tracing::{error, info};
@@ -21,7 +21,7 @@ pub struct State<T: PubsubPublisher> {
 
 #[ractor::async_trait]
 pub trait PubsubPublisher: Send + Sync + 'static {
-    async fn publish_event(&mut self, event: &EventToReport) -> Result<()>;
+    async fn publish_event(&mut self, event: &ReportRequest) -> Result<()>;
 }
 
 #[ractor::async_trait]
@@ -50,13 +50,16 @@ where
         state: &mut Self::State,
     ) -> Result<(), ActorProcessingErr> {
         match message {
-            Self::Msg::Enqueue(event_to_report) => {
-                if let Err(e) = state.pubsub_publisher.publish_event(&event_to_report).await {
+            Self::Msg::Enqueue(report_request) => {
+                if let Err(e) = state.pubsub_publisher.publish_event(&report_request).await {
                     error!("Failed to publish event: {}", e);
                     return Ok(());
                 }
 
-                info!("Event {} enqueued for moderation", event_to_report.id());
+                info!(
+                    "Event {} enqueued for moderation",
+                    report_request.reported_event.id()
+                );
             }
         }
 
@@ -67,14 +70,16 @@ where
 #[cfg(test)]
 mod tests {
     use nostr_sdk::prelude::{EventBuilder, Keys};
+    use nostr_sdk::JsonUtil;
     use ractor::cast;
+    use serde_json::json;
     use std::sync::Arc;
     use std::time::Duration;
     use tokio::sync::Mutex;
 
     #[derive(Clone)]
     struct TestGooglePublisher {
-        published_events: Arc<Mutex<Vec<EventToReport>>>,
+        published_events: Arc<Mutex<Vec<ReportRequest>>>,
     }
     impl TestGooglePublisher {
         fn new() -> Self {
@@ -86,7 +91,7 @@ mod tests {
 
     #[ractor::async_trait]
     impl PubsubPublisher for TestGooglePublisher {
-        async fn publish_event(&mut self, event: &EventToReport) -> Result<()> {
+        async fn publish_event(&mut self, event: &ReportRequest) -> Result<()> {
             self.published_events.lock().await.push(event.clone());
             Ok(())
         }
@@ -105,14 +110,21 @@ mod tests {
         .await
         .unwrap();
 
-        let event_to_report = EventToReport::new(
-            EventBuilder::text_note("First event", [])
-                .to_event(&Keys::generate())
-                .unwrap(),
-        );
+        let event_to_report = EventBuilder::text_note("First event", [])
+            .to_event(&Keys::generate())
+            .unwrap();
+
+        let report_request_string = json!({
+            "reportedEvent": event_to_report,
+            "reporterText": "This is hateful. Report it!"
+        })
+        .to_string();
+
+        let report_request: ReportRequest = serde_json::from_str(&report_request_string).unwrap();
+
         cast!(
             event_enqueuer_ref,
-            EventEnqueuerMessage::Enqueue(event_to_report.clone())
+            EventEnqueuerMessage::Enqueue(report_request.clone())
         )
         .unwrap();
 
@@ -125,7 +137,7 @@ mod tests {
 
         assert_eq!(
             test_google_publisher.published_events.lock().await.as_ref(),
-            [event_to_report]
+            [report_request]
         );
     }
 }

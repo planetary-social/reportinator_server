@@ -1,4 +1,4 @@
-use crate::actors::messages::{EventToReport, GiftUnwrapperMessage};
+use crate::actors::messages::{GiftUnwrapperMessage, ReportRequest};
 use anyhow::Result;
 use nostr_sdk::prelude::*;
 use ractor::{Actor, ActorProcessingErr, ActorRef, OutputPort};
@@ -8,7 +8,7 @@ use tracing::{error, info};
 pub struct GiftUnwrapper;
 pub struct State {
     keys: Keys, // Keys used for decrypting messages.
-    message_parsed_output_port: OutputPort<EventToReport>, // Port for publishing the events to report parsed from gift wrapped payload
+    message_parsed_output_port: OutputPort<ReportRequest>, // Port for publishing the events to report parsed from gift wrapped payload
 }
 
 #[ractor::async_trait]
@@ -40,8 +40,8 @@ impl Actor for GiftUnwrapper {
     ) -> Result<(), ActorProcessingErr> {
         match message {
             // Decrypts and forwards private messages to the output port.
-            GiftUnwrapperMessage::UnwrapEvent(event) => {
-                let unwrapped_gift = match event.extract_rumor(&state.keys) {
+            GiftUnwrapperMessage::UnwrapEvent(gift_wrap) => {
+                let unwrapped_gift = match gift_wrap.extract_rumor(&state.keys) {
                     Ok(gift) => gift,
                     Err(e) => {
                         error!("Error extracting rumor: {}", e);
@@ -49,22 +49,20 @@ impl Actor for GiftUnwrapper {
                     }
                 };
 
-                match Event::from_json(&unwrapped_gift.rumor.content) {
-                    Ok(event_to_report) => {
+                match serde_json::from_str::<ReportRequest>(&unwrapped_gift.rumor.content) {
+                    Ok(report_request) => {
                         info!(
                             "Request from {} to moderate event {}",
                             unwrapped_gift.sender,
-                            event_to_report.id()
+                            report_request.reported_event.id()
                         );
 
-                        if let Err(e) = event_to_report.verify() {
+                        if let Err(e) = report_request.reported_event.verify() {
                             error!("Error verifying event: {}", e);
                             return Ok(());
                         }
 
-                        state
-                            .message_parsed_output_port
-                            .send(EventToReport::new(event_to_report))
+                        state.message_parsed_output_port.send(report_request)
                     }
                     Err(e) => {
                         error!("Error parsing event from {}, {}", unwrapped_gift.sender, e);
@@ -86,21 +84,29 @@ impl Actor for GiftUnwrapper {
 // properly implement the nip like created_at treatment. The nip itself is not
 // finished at this time so hopefully in the future this can be done through the
 // nostr crate.
-#[allow(dead_code)]
+#[allow(dead_code)] // Besides the tests, it's used from the giftwrapper utility binary
 pub async fn create_private_dm_message(
-    message: &str,
-    sender_keys: &Keys,
+    report_request: &ReportRequest,
+    reporter_keys: &Keys,
     receiver_pubkey: &PublicKey,
 ) -> Result<Event> {
+    if let Some(reporter_pubkey) = &report_request.reporter_pubkey {
+        if reporter_pubkey != &reporter_keys.public_key() {
+            return Err(anyhow::anyhow!(
+                "Reporter public key doesn't match the provided keys"
+            ));
+        }
+    }
     // Compose rumor
-    let kind_14_rumor = EventBuilder::sealed_direct(receiver_pubkey.clone(), message)
-        .to_unsigned_event(sender_keys.public_key());
+    let kind_14_rumor =
+        EventBuilder::sealed_direct(receiver_pubkey.clone(), report_request.as_json())
+            .to_unsigned_event(reporter_keys.public_key());
 
     // Compose seal
-    let content: String = NostrSigner::Keys(sender_keys.clone())
+    let content: String = NostrSigner::Keys(reporter_keys.clone())
         .nip44_encrypt(receiver_pubkey.clone(), kind_14_rumor.as_json())
         .await?;
-    let kind_13_seal = EventBuilder::new(Kind::Seal, content, []).to_event(&sender_keys)?;
+    let kind_13_seal = EventBuilder::new(Kind::Seal, content, []).to_event(&reporter_keys)?;
 
     // Compose gift wrap
     let kind_1059_gift_wrap: Event =
@@ -115,6 +121,7 @@ mod tests {
     use crate::actors::messages::GiftWrap;
     use crate::actors::TestActor;
     use ractor::{cast, Actor};
+    use serde_json::json;
     use std::sync::Arc;
     use tokio::sync::Mutex;
     use tokio::time::{sleep, Duration};
@@ -131,19 +138,25 @@ mod tests {
         let sender_keys = Keys::parse(sender_secret).unwrap();
 
         let bad_guy_keys = Keys::generate();
-        let event_to_report = EventToReport::new(
-            EventBuilder::text_note("I hate you!!", [])
-                .to_event(&bad_guy_keys)
-                .unwrap(),
-        );
+
+        let event_to_report = EventBuilder::text_note("I hate you!!", [])
+            .to_event(&bad_guy_keys)
+            .unwrap();
+
+        let report_request_string = json!({
+            "reportedEvent": event_to_report,
+            "reporterText": "This is hateful. Report it!"
+        })
+        .to_string();
+        let report_request: ReportRequest = serde_json::from_str(&report_request_string).unwrap();
 
         let gift_wrapped_event = GiftWrap::new(
-            create_private_dm_message(&event_to_report.as_json(), &sender_keys, &receiver_pubkey)
+            create_private_dm_message(&report_request, &sender_keys, &receiver_pubkey)
                 .await
                 .unwrap(),
         );
 
-        let messages_received = Arc::new(Mutex::new(Vec::<EventToReport>::new()));
+        let messages_received = Arc::new(Mutex::new(Vec::<ReportRequest>::new()));
         let (receiver_actor_ref, receiver_actor_handle) =
             Actor::spawn(None, TestActor::default(), messages_received.clone())
                 .await
@@ -175,6 +188,6 @@ mod tests {
         parser_handle.await.unwrap();
         receiver_actor_handle.await.unwrap();
 
-        assert_eq!(messages_received.lock().await.as_ref(), [event_to_report]);
+        assert_eq!(messages_received.lock().await.as_ref(), [report_request]);
     }
 }

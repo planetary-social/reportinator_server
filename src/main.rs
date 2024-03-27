@@ -28,6 +28,10 @@ async fn main() -> Result<()> {
     let reportinator_keys =
         Keys::parse(reportinator_secret).context("Error creating keys from secret")?;
     let reportinator_public_key = reportinator_keys.public_key();
+    info!(
+        "Reportinator public key: {}",
+        reportinator_public_key.to_string()
+    );
 
     //TODO: We should probably also filter through `since`
     let gift_wrap_filter = vec![Filter::new()

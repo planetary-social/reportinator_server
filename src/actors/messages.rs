@@ -1,7 +1,8 @@
 use crate::actors::utilities::OutputPortSubscriber;
 use anyhow::{Context, Result};
 use nostr_sdk::prelude::*;
-use std::fmt::{Debug, Display, Formatter};
+use serde::{Deserialize, Serialize};
+use std::fmt::Debug;
 
 //Newtype
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -27,47 +28,39 @@ pub enum RelayEventDispatcherMessage {
 #[derive(Debug)]
 pub enum GiftUnwrapperMessage {
     UnwrapEvent(GiftWrap),
-    SubscribeToEventUnwrapped(OutputPortSubscriber<EventToReport>),
+    SubscribeToEventUnwrapped(OutputPortSubscriber<ReportRequest>),
 }
 
-// How to subscribe to actors that publish Event messages like RelayEventDispatcher
+// How to subscribe to actors that publish DM messages like RelayEventDispatcher
 impl From<GiftWrap> for GiftUnwrapperMessage {
     fn from(gift_wrap: GiftWrap) -> Self {
         GiftUnwrapperMessage::UnwrapEvent(gift_wrap)
     }
 }
 
-//Newtype
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct EventToReport(Event);
-impl EventToReport {
-    pub fn new(event: Event) -> Self {
-        EventToReport(event)
-    }
-
-    pub fn as_json(&self) -> String {
-        self.0.as_json()
-    }
-
-    pub fn id(&self) -> String {
-        self.0.id().to_string()
-    }
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ReportRequest {
+    pub reported_event: Event,
+    pub reporter_pubkey: Option<PublicKey>,
+    pub reporter_text: Option<String>,
 }
-impl Display for EventToReport {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}", self.0.as_json())
+
+impl ReportRequest {
+    pub fn as_json(&self) -> String {
+        serde_json::to_string(self).expect("Failed to serialize ReportRequest to JSON")
     }
 }
 
 #[derive(Debug)]
 pub enum EventEnqueuerMessage {
-    Enqueue(EventToReport),
+    Enqueue(ReportRequest),
 }
 
 // How to subscribe to actors that publish EventToReport messages like GiftUnwrapper
-impl From<EventToReport> for EventEnqueuerMessage {
-    fn from(event_to_report: EventToReport) -> Self {
-        EventEnqueuerMessage::Enqueue(event_to_report)
+impl From<ReportRequest> for EventEnqueuerMessage {
+    fn from(report_request: ReportRequest) -> Self {
+        EventEnqueuerMessage::Enqueue(report_request)
     }
 }
 
@@ -76,19 +69,8 @@ pub enum TestActorMessage<T> {
     EventHappened(T),
 }
 
-impl From<EventToReport> for TestActorMessage<EventToReport> {
-    fn from(event: EventToReport) -> Self {
+impl From<ReportRequest> for TestActorMessage<ReportRequest> {
+    fn from(event: ReportRequest) -> Self {
         TestActorMessage::EventHappened(event)
-    }
-}
-
-#[derive(Debug, Clone)]
-pub enum LogActorMessage {
-    Info(String),
-}
-
-impl From<EventToReport> for LogActorMessage {
-    fn from(event: EventToReport) -> Self {
-        LogActorMessage::Info(event.as_json())
     }
 }

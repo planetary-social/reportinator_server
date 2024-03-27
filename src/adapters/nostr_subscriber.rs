@@ -4,7 +4,7 @@ use crate::actors::Subscribe;
 use nostr_sdk::prelude::*;
 use ractor::{cast, concurrency::Duration, ActorRef};
 use tokio_util::sync::CancellationToken;
-use tracing::{debug, error};
+use tracing::{debug, error, info};
 
 #[derive(Clone)]
 pub struct NostrSubscriber {
@@ -38,6 +38,7 @@ impl Subscribe for NostrSubscriber {
 
         client.disconnect().await?;
         client.connect().await;
+        info!("Subscribing to {:?}", self.filters.clone());
         client.subscribe(self.filters.clone(), None).await;
 
         let client_clone = client.clone();

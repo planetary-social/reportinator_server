@@ -1,4 +1,4 @@
-use crate::actors::messages::EventToReport;
+use crate::actors::messages::ReportRequest;
 use crate::actors::PubsubPublisher;
 use anyhow::{Context, Result};
 use gcloud_sdk::{
@@ -33,9 +33,11 @@ impl GooglePublisher {
 
 #[ractor::async_trait]
 impl PubsubPublisher for GooglePublisher {
-    async fn publish_event(&mut self, event: &EventToReport) -> Result<()> {
+    async fn publish_event(&mut self, report_request: &ReportRequest) -> Result<()> {
         let pubsub_message = PubsubMessage {
-            data: event.as_json().as_bytes().into(),
+            data: serde_json::to_vec(report_request)
+                .context("Failed to serialize event to JSON")?
+                .into(),
             ..Default::default()
         };
 
