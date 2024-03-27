@@ -42,6 +42,7 @@ Ensure these environment variables are set before running the Reportinator Serve
 - `RELAY_ADDRESSES_CSV`: A comma-separated list of relay addresses for listening to direct messages.
 - `REPORTINATOR_SECRET`: The Reportinator bot's secret public key for message authentication and decryption.
 - `GOOGLE_APPLICATION_CREDENTIALS`: Path to the Google Cloud credentials file for Google Cloud PubSub topic access.
+- `SLACK_SIGNING_SECRET`: The Slack app signing secret.
 
 ### Running Locally
 
