@@ -36,6 +36,8 @@ RUN --mount=type=bind,source=src,target=src \
 cargo build --locked --release && \
 cp ./target/release/$APP_NAME /bin/server
 
+COPY ./templates /app/templates/
+
 ################################################################################
 # Create a new stage for running the application that contains the minimal
 # runtime dependencies for the application. This often uses a different base
@@ -63,6 +65,7 @@ USER appuser
 
 # Copy the executable from the "build" stage.
 COPY --from=build /bin/server /bin/
+COPY --from=build /app/templates /app/templates
 
 # Expose the port that the application listens on.
 EXPOSE 3000

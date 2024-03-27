@@ -31,7 +31,8 @@ impl HttpServer {
         let addr = SocketAddr::from(([0, 0, 0, 0], 3000));
         info!("Starting HTTP server at {}", addr);
 
-        let templates_dir = env::var("TEMPLATES_DIR").unwrap_or_else(|_| "templates".to_string());
+        let templates_dir =
+            env::var("TEMPLATES_DIR").unwrap_or_else(|_| "/app/templates".to_string());
         let mut hb = Handlebars::new();
         if let Err(e) = hb.register_template_file("root", format!("{}/root.hbs", templates_dir)) {
             error!("Failed to load template: {}", e);
