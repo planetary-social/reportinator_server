@@ -1,5 +1,6 @@
 use anyhow::{Context, Error, Result};
 use ractor::{Actor, ActorCell, ActorRef};
+use regex::Regex;
 use tokio::macros::support::Future;
 use tokio::signal;
 use tokio::sync::mpsc;
@@ -38,13 +39,7 @@ impl ServiceManager {
     where
         A: Actor,
     {
-        let name = Some(
-            std::any::type_name::<A>()
-                .split("::")
-                .last()
-                .unwrap()
-                .to_string(),
-        );
+        let name = Some(simplify_type_name(std::any::type_name::<A>()));
         let (actor_ref, actor_handle) = Actor::spawn(name, actor, args).await?;
         self.tracker.reopen();
         self.tracker.spawn(actor_handle);
@@ -67,13 +62,7 @@ impl ServiceManager {
     where
         A: Actor,
     {
-        let name = Some(
-            std::any::type_name::<A>()
-                .split("::")
-                .last()
-                .unwrap()
-                .to_string(),
-        );
+        let name = Some(simplify_type_name(std::any::type_name::<A>()));
         let (actor_ref, actor_handle) = Actor::spawn(name, actor, args).await?;
         self.tracker.reopen();
         self.tracker.spawn_blocking(move || {
@@ -210,4 +199,20 @@ impl Drop for ServiceManager {
             self.token.cancel();
         }
     }
+}
+
+fn simplify_type_name(input: &str) -> String {
+    let mut result = input.to_string();
+    // Match segments starting with lowercase followed by any of the specified delimiters
+    let regex = Regex::new(r"\b[a-z]\w*(::|<)").unwrap();
+
+    // As long as there's a match, keep replacing
+    while let Some(mat) = regex.find(&result) {
+        // Calculate the replacement range to keep the delimiter
+        let range = mat.start()..mat.end() - 2;
+        // Replace the matched segment with an empty string, effectively removing it
+        result.replace_range(range, "");
+    }
+
+    result.replace(":", "")
 }

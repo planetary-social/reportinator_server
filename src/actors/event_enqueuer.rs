@@ -50,7 +50,7 @@ where
         state: &mut Self::State,
     ) -> Result<(), ActorProcessingErr> {
         match message {
-            Self::Msg::Enqueue(report_request) => {
+            EventEnqueuerMessage::Enqueue(report_request) => {
                 if let Err(e) = state.pubsub_publisher.publish_event(&report_request).await {
                     error!("Failed to publish event: {}", e);
                     return Ok(());
@@ -70,7 +70,6 @@ where
 #[cfg(test)]
 mod tests {
     use nostr_sdk::prelude::{EventBuilder, Keys};
-    use nostr_sdk::JsonUtil;
     use ractor::cast;
     use serde_json::json;
     use std::sync::Arc;

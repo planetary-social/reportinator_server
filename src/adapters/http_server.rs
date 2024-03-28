@@ -50,11 +50,7 @@ where
     Router<WebAppState>: From<SlackLayer>,
 {
     let tracing_layer = TraceLayer::new_for_http()
-        .make_span_with(
-            DefaultMakeSpan::new()
-                .include_headers(true)
-                .level(Level::INFO),
-        )
+        .make_span_with(DefaultMakeSpan::new().level(Level::INFO))
         .on_response(
             DefaultOnResponse::new()
                 .level(Level::INFO)

@@ -50,6 +50,10 @@ impl ReportRequest {
     pub fn as_json(&self) -> String {
         serde_json::to_string(self).expect("Failed to serialize ReportRequest to JSON")
     }
+
+    pub fn valid(&self) -> bool {
+        self.reporter_pubkey.is_some() && self.reported_event.verify().is_ok()
+    }
 }
 
 #[derive(Debug)]

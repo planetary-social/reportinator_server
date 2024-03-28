@@ -5,6 +5,7 @@ use gcloud_sdk::{
     google::pubsub::v1::{publisher_client::PublisherClient, PublishRequest, PubsubMessage},
     *,
 };
+use tracing::info;
 
 pub struct GooglePublisher {
     pubsub_client: GoogleApi<PublisherClient<GoogleAuthMiddleware>>,
@@ -52,6 +53,8 @@ impl PubsubPublisher for GooglePublisher {
             .publish(request)
             .await
             .context("Failed to publish event")?;
+
+        info!("Event published successfully");
 
         Ok(())
     }

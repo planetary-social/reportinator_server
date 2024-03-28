@@ -57,8 +57,8 @@ impl Actor for GiftUnwrapper {
                             report_request.reported_event.id()
                         );
 
-                        if let Err(e) = report_request.reported_event.verify() {
-                            error!("Error verifying event: {}", e);
+                        if !report_request.valid() {
+                            error!("Invalid report request");
                             return Ok(());
                         }
 
@@ -145,6 +145,7 @@ mod tests {
 
         let report_request_string = json!({
             "reportedEvent": event_to_report,
+            "reporterPubkey": sender_keys.public_key().to_string(),
             "reporterText": "This is hateful. Report it!"
         })
         .to_string();
