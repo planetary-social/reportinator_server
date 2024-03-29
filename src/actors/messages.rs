@@ -6,19 +6,19 @@ use std::fmt::Debug;
 pub enum RelayEventDispatcherMessage {
     Connect,
     Reconnect,
-    SubscribeToEventReceived(OutputPortSubscriber<GiftWrap>),
-    EventReceived(GiftWrap),
+    SubscribeToEventReceived(OutputPortSubscriber<GiftWrappedReportRequest>),
+    EventReceived(GiftWrappedReportRequest),
 }
 
 #[derive(Debug)]
 pub enum GiftUnwrapperMessage {
-    UnwrapEvent(GiftWrap),
+    UnwrapEvent(GiftWrappedReportRequest),
     SubscribeToEventUnwrapped(OutputPortSubscriber<ReportRequest>),
 }
 
 // How to subscribe to actors that publish DM messages like RelayEventDispatcher
-impl From<GiftWrap> for GiftUnwrapperMessage {
-    fn from(gift_wrap: GiftWrap) -> Self {
+impl From<GiftWrappedReportRequest> for GiftUnwrapperMessage {
+    fn from(gift_wrap: GiftWrappedReportRequest) -> Self {
         GiftUnwrapperMessage::UnwrapEvent(gift_wrap)
     }
 }

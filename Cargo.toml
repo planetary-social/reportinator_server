@@ -37,3 +37,6 @@ path = "src/main.rs"
 [[bin]]
 name = "giftwrapper"
 path = "src/bin/giftwrapper.rs"
+
+[dev-dependencies]
+pretty_assertions = "1.4.0"

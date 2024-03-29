@@ -1,6 +1,6 @@
 use crate::actors::messages::RelayEventDispatcherMessage;
 use crate::actors::Subscribe;
-use crate::domain_objects::GiftWrap;
+use crate::domain_objects::GiftWrappedReportRequest;
 use nostr_sdk::prelude::*;
 use ractor::{cast, concurrency::Duration, ActorRef};
 use tokio_util::sync::CancellationToken;
@@ -58,9 +58,10 @@ impl Subscribe for NostrSubscriber {
                 }
 
                 if let RelayPoolNotification::Event { event, .. } = notification {
+                    let gift_wrapped_report_request = GiftWrappedReportRequest::try_from(*event)?;
                     cast!(
                         dispatcher_actor,
-                        RelayEventDispatcherMessage::EventReceived(GiftWrap::new(*event))
+                        RelayEventDispatcherMessage::EventReceived(gift_wrapped_report_request)
                     )
                     .expect("Failed to cast event to dispatcher");
                 }

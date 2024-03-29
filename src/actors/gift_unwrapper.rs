@@ -52,8 +52,8 @@ impl Actor for GiftUnwrapper {
 
                 info!(
                     "Request from {} to moderate event {}",
-                    report_request.reporter_pubkey,
-                    report_request.reported_event.id()
+                    report_request.reporter_pubkey(),
+                    report_request.reported_event().id()
                 );
 
                 state.message_parsed_output_port.send(report_request)
@@ -68,45 +68,10 @@ impl Actor for GiftUnwrapper {
     }
 }
 
-// NOTE: This roughly creates a message as described by nip 17 but it's still
-// not ready, just for testing purposes. There are more details to consider to
-// properly implement the nip like created_at treatment. The nip itself is not
-// finished at this time so hopefully in the future this can be done through the
-// nostr crate.
-#[allow(dead_code)] // Besides the tests, it's used from the giftwrapper utility binary
-pub async fn create_private_dm_message(
-    report_request: &ReportRequest,
-    reporter_keys: &Keys,
-    receiver_pubkey: &PublicKey,
-) -> Result<Event> {
-    if report_request.reporter_pubkey != reporter_keys.public_key() {
-        return Err(anyhow::anyhow!(
-            "Reporter public key doesn't match the provided keys"
-        ));
-    }
-    // Compose rumor
-    let kind_14_rumor =
-        EventBuilder::sealed_direct(receiver_pubkey.clone(), report_request.as_json())
-            .to_unsigned_event(reporter_keys.public_key());
-
-    // Compose seal
-    let content: String = NostrSigner::Keys(reporter_keys.clone())
-        .nip44_encrypt(receiver_pubkey.clone(), kind_14_rumor.as_json())
-        .await?;
-    let kind_13_seal = EventBuilder::new(Kind::Seal, content, []).to_event(&reporter_keys)?;
-
-    // Compose gift wrap
-    let kind_1059_gift_wrap: Event =
-        EventBuilder::gift_wrap_from_seal(&receiver_pubkey, &kind_13_seal, None)?;
-
-    Ok(kind_1059_gift_wrap)
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::actors::TestActor;
-    use crate::domain_objects::GiftWrap;
     use ractor::{cast, Actor};
     use serde_json::json;
     use std::sync::Arc;
@@ -138,11 +103,10 @@ mod tests {
         .to_string();
         let report_request: ReportRequest = serde_json::from_str(&report_request_string).unwrap();
 
-        let gift_wrapped_event = GiftWrap::new(
-            create_private_dm_message(&report_request, &sender_keys, &receiver_pubkey)
-                .await
-                .unwrap(),
-        );
+        let gift_wrapped_event = report_request
+            .as_gift_wrap(&sender_keys, &receiver_pubkey)
+            .await
+            .unwrap();
 
         let messages_received = Arc::new(Mutex::new(Vec::<ReportRequest>::new()));
         let (receiver_actor_ref, receiver_actor_handle) =

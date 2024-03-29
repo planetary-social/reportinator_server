@@ -1,5 +1,5 @@
 use crate::actors::messages::RelayEventDispatcherMessage;
-use crate::domain_objects::GiftWrap;
+use crate::domain_objects::GiftWrappedReportRequest;
 use crate::service_manager::ServiceManager;
 use anyhow::Result;
 use nostr_sdk::prelude::*;
@@ -19,7 +19,7 @@ impl<T: Subscribe> Default for RelayEventDispatcher<T> {
     }
 }
 pub struct State<T: Subscribe> {
-    event_received_output_port: OutputPort<GiftWrap>,
+    event_received_output_port: OutputPort<GiftWrappedReportRequest>,
     subscription_task_manager: Option<ServiceManager>,
     nostr_client: T,
 }
@@ -195,6 +195,7 @@ where
 mod tests {
     use super::*;
     use crate::actors::TestActor;
+    use pretty_assertions::assert_eq;
     use ractor::{cast, concurrency::Duration};
     use std::sync::Arc;
     use tokio::sync::mpsc;
@@ -245,7 +246,9 @@ mod tests {
             while let Some(Some(event)) = self.event_receiver.lock().await.recv().await {
                 cast!(
                     dispatcher_actor,
-                    RelayEventDispatcherMessage::EventReceived(GiftWrap::new(event))
+                    RelayEventDispatcherMessage::EventReceived(GiftWrappedReportRequest::try_from(
+                        event
+                    )?)
                 )
                 .expect("Failed to cast event to dispatcher");
             }
@@ -256,10 +259,10 @@ mod tests {
 
     #[tokio::test]
     async fn test_relay_event_dispatcher() {
-        let first_event = EventBuilder::text_note("First event", [])
+        let first_event = EventBuilder::new(Kind::GiftWrap, "First event", [])
             .to_event(&Keys::generate())
             .unwrap();
-        let second_event = EventBuilder::text_note("Second event", [])
+        let second_event = EventBuilder::new(Kind::GiftWrap, "Second event", [])
             .to_event(&Keys::generate())
             .unwrap();
 
@@ -275,7 +278,7 @@ mod tests {
         .await
         .unwrap();
 
-        let received_messages = Arc::new(Mutex::new(Vec::<GiftWrap>::new()));
+        let received_messages = Arc::new(Mutex::new(Vec::<GiftWrappedReportRequest>::new()));
 
         let (receiver_ref, receiver_handle) =
             Actor::spawn(None, TestActor::default(), received_messages.clone())
@@ -304,7 +307,10 @@ mod tests {
 
         assert_eq!(
             received_messages.lock().await.as_ref(),
-            [GiftWrap::new(first_event), GiftWrap::new(second_event)]
+            [
+                GiftWrappedReportRequest::try_from(first_event).unwrap(),
+                GiftWrappedReportRequest::try_from(second_event).unwrap()
+            ]
         );
     }
 }

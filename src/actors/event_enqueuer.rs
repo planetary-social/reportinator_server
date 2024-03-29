@@ -58,7 +58,7 @@ where
 
                 info!(
                     "Event {} enqueued for moderation",
-                    report_request.reported_event.id()
+                    report_request.reported_event().id()
                 );
             }
         }

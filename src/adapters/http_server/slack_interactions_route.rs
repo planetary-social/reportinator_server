@@ -2,12 +2,14 @@ use super::app_errors::AppError;
 use super::WebAppState;
 use anyhow::{anyhow, Context, Result};
 use axum::{extract::State, routing::post, Extension, Router};
+use gcloud_sdk::tonic::IntoRequest;
 use nostr_sdk::prelude::*;
+use reportinator_server::domain_objects::{ModeratedReport, ModerationCategory, ReportRequest};
 use reqwest::Client;
 use serde_json::{json, Value};
 use slack_morphism::prelude::*;
-use std::env;
 use std::sync::Arc;
+use std::{env, str::FromStr};
 use tracing::{error, info};
 
 pub fn slack_interactions_route() -> Result<Router<WebAppState>> {
@@ -112,12 +114,27 @@ async fn slack_interaction_handler(
                 )
             })?;
 
-            info!("Reported Event Block: {:?}", event);
+            // The slack payload is the category id in the action_id, and the reporter pubkey in the value
+            let reporter_pubkey = Keys::from_str(&value)?.public_key();
+            let report_request = ReportRequest::new(event, reporter_pubkey, None);
+            let category = ModerationCategory::from_str(&action_id).ok();
+            let moderated_report = report_request.moderate(category);
+
             info!(
                 "Received interaction from {}. Action: {}, Value: {}",
                 username, action_id, value
             );
-            respond_with_replace(&response_url.to_string(), username, text, event.id).await?;
+
+            let response_text = match moderated_report {
+                Some(moderated_report) => {
+                    format!(
+                        "Event reported by {} has been moderated with category: {}",
+                        username, moderated_report
+                    )
+                }
+                None => format!("{} skipped moderation for {}", username, report_request),
+            };
+            respond_with_replace(&response_url.to_string(), &response_text).await?;
         }
         _ => {}
     }
@@ -125,17 +142,8 @@ async fn slack_interaction_handler(
     Ok(())
 }
 
-async fn respond_with_replace(
-    response_url: &str,
-    username: &str,
-    text: &str,
-    event_id: EventId,
-) -> Result<()> {
+async fn respond_with_replace(response_url: &str, response_text: &str) -> Result<()> {
     let client = Client::new();
-    let response_text = format!(
-        "`{}` selected `{}` for event id `{}`",
-        username, text, event_id
-    );
 
     let res = client
         .post(response_url)
