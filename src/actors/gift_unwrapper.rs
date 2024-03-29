@@ -1,4 +1,5 @@
-use crate::actors::messages::{GiftUnwrapperMessage, ReportRequest};
+use crate::actors::messages::GiftUnwrapperMessage;
+use crate::domain_objects::ReportRequest;
 use anyhow::Result;
 use nostr_sdk::prelude::*;
 use ractor::{Actor, ActorProcessingErr, ActorRef, OutputPort};
@@ -41,33 +42,21 @@ impl Actor for GiftUnwrapper {
         match message {
             // Decrypts and forwards private messages to the output port.
             GiftUnwrapperMessage::UnwrapEvent(gift_wrap) => {
-                let unwrapped_gift = match gift_wrap.extract_rumor(&state.keys) {
-                    Ok(gift) => gift,
+                let report_request = match gift_wrap.extract_report_request(&state.keys) {
+                    Ok(report_request) => report_request,
                     Err(e) => {
-                        error!("Error extracting rumor: {}", e);
+                        error!("Error extracting report: {}", e);
                         return Ok(());
                     }
                 };
 
-                match serde_json::from_str::<ReportRequest>(&unwrapped_gift.rumor.content) {
-                    Ok(report_request) => {
-                        info!(
-                            "Request from {} to moderate event {}",
-                            unwrapped_gift.sender,
-                            report_request.reported_event.id()
-                        );
+                info!(
+                    "Request from {} to moderate event {}",
+                    report_request.reporter_pubkey,
+                    report_request.reported_event.id()
+                );
 
-                        if !report_request.valid() {
-                            error!("Invalid report request");
-                            return Ok(());
-                        }
-
-                        state.message_parsed_output_port.send(report_request)
-                    }
-                    Err(e) => {
-                        error!("Error parsing event from {}, {}", unwrapped_gift.sender, e);
-                    }
-                }
+                state.message_parsed_output_port.send(report_request)
             }
 
             // Subscribes a new actor to receive parsed messages through the output port.
@@ -90,12 +79,10 @@ pub async fn create_private_dm_message(
     reporter_keys: &Keys,
     receiver_pubkey: &PublicKey,
 ) -> Result<Event> {
-    if let Some(reporter_pubkey) = &report_request.reporter_pubkey {
-        if reporter_pubkey != &reporter_keys.public_key() {
-            return Err(anyhow::anyhow!(
-                "Reporter public key doesn't match the provided keys"
-            ));
-        }
+    if report_request.reporter_pubkey != reporter_keys.public_key() {
+        return Err(anyhow::anyhow!(
+            "Reporter public key doesn't match the provided keys"
+        ));
     }
     // Compose rumor
     let kind_14_rumor =
@@ -118,8 +105,8 @@ pub async fn create_private_dm_message(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::actors::messages::GiftWrap;
     use crate::actors::TestActor;
+    use crate::domain_objects::GiftWrap;
     use ractor::{cast, Actor};
     use serde_json::json;
     use std::sync::Arc;

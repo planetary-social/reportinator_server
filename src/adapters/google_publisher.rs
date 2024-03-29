@@ -1,5 +1,5 @@
-use crate::actors::messages::ReportRequest;
 use crate::actors::PubsubPublisher;
+use crate::domain_objects::ReportRequest;
 use anyhow::{Context, Result};
 use gcloud_sdk::{
     google::pubsub::v1::{publisher_client::PublisherClient, PublishRequest, PubsubMessage},

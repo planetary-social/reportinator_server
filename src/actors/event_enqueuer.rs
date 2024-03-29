@@ -1,5 +1,5 @@
 use crate::actors::messages::EventEnqueuerMessage;
-use crate::actors::messages::ReportRequest;
+use crate::domain_objects::ReportRequest;
 use anyhow::Result;
 use ractor::{Actor, ActorProcessingErr, ActorRef};
 use tracing::{error, info};
@@ -115,6 +115,7 @@ mod tests {
 
         let report_request_string = json!({
             "reportedEvent": event_to_report,
+            "reporterPubkey": Keys::generate().public_key().to_string(),
             "reporterText": "This is hateful. Report it!"
         })
         .to_string();

@@ -1,7 +1,7 @@
 use anyhow::Result;
 use nostr_sdk::prelude::*;
 use reportinator_server::actors::gift_unwrapper::create_private_dm_message;
-use reportinator_server::actors::messages::ReportRequest;
+use reportinator_server::domain_objects::ReportRequest;
 use std::env;
 use std::io::{self, BufRead};
 use std::str::FromStr;
@@ -32,7 +32,7 @@ async fn main() -> Result<()> {
     let sender_keys = Keys::generate();
     let report_request = ReportRequest {
         reported_event: EventBuilder::text_note(&message, []).to_event(&sender_keys)?,
-        reporter_pubkey: Some(sender_keys.public_key()),
+        reporter_pubkey: sender_keys.public_key(),
         reporter_text: Some("This is wrong, report it!".to_string()),
     };
     let event_result =

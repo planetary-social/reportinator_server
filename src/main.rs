@@ -1,6 +1,8 @@
 mod actors;
 mod adapters;
+mod domain_objects;
 mod service_manager;
+
 use crate::actors::{
     messages::{GiftUnwrapperMessage, RelayEventDispatcherMessage},
     EventEnqueuer, GiftUnwrapper, RelayEventDispatcher, Subscribe,

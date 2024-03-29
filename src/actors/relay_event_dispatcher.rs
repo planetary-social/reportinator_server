@@ -1,5 +1,5 @@
-use super::messages::GiftWrap;
 use crate::actors::messages::RelayEventDispatcherMessage;
+use crate::domain_objects::GiftWrap;
 use crate::service_manager::ServiceManager;
 use anyhow::Result;
 use nostr_sdk::prelude::*;

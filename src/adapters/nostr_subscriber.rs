@@ -1,6 +1,6 @@
-use crate::actors::messages::GiftWrap;
 use crate::actors::messages::RelayEventDispatcherMessage;
 use crate::actors::Subscribe;
+use crate::domain_objects::GiftWrap;
 use nostr_sdk::prelude::*;
 use ractor::{cast, concurrency::Duration, ActorRef};
 use tokio_util::sync::CancellationToken;

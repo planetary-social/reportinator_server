@@ -1,21 +1,6 @@
 use crate::actors::utilities::OutputPortSubscriber;
-use anyhow::{Context, Result};
-use nostr_sdk::prelude::*;
-use serde::{Deserialize, Serialize};
+use crate::domain_objects::*;
 use std::fmt::Debug;
-
-//Newtype
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct GiftWrap(Event);
-impl GiftWrap {
-    pub fn new(event: Event) -> Self {
-        GiftWrap(event)
-    }
-
-    pub fn extract_rumor(&self, keys: &Keys) -> Result<UnwrappedGift> {
-        extract_rumor(keys, &self.0).context("Couldn't extract rumor")
-    }
-}
 
 #[derive(Debug)]
 pub enum RelayEventDispatcherMessage {
@@ -35,24 +20,6 @@ pub enum GiftUnwrapperMessage {
 impl From<GiftWrap> for GiftUnwrapperMessage {
     fn from(gift_wrap: GiftWrap) -> Self {
         GiftUnwrapperMessage::UnwrapEvent(gift_wrap)
-    }
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct ReportRequest {
-    pub reported_event: Event,
-    pub reporter_pubkey: Option<PublicKey>,
-    pub reporter_text: Option<String>,
-}
-
-impl ReportRequest {
-    pub fn as_json(&self) -> String {
-        serde_json::to_string(self).expect("Failed to serialize ReportRequest to JSON")
-    }
-
-    pub fn valid(&self) -> bool {
-        self.reporter_pubkey.is_some() && self.reported_event.verify().is_ok()
     }
 }
 
