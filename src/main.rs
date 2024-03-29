@@ -104,7 +104,8 @@ async fn start_server(
     // Connect as the last message once everything is wired up
     cast!(event_dispatcher, RelayEventDispatcherMessage::Connect)?;
 
-    manager.spawn_service(HttpServer::run);
+    manager
+        .spawn_service(|cancellation_token| HttpServer::run(cancellation_token, event_dispatcher));
 
     manager
         .listen_stop_signals()

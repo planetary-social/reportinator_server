@@ -1,9 +1,8 @@
 use super::app_errors::AppError;
 use super::WebAppState;
-use anyhow::{Context, Result};
-use axum::Extension;
-use axum::{routing::post, Router};
-use nostr_sdk::Event;
+use anyhow::{anyhow, Context, Result};
+use axum::{extract::State, routing::post, Extension, Router};
+use nostr_sdk::prelude::*;
 use reqwest::Client;
 use serde_json::{json, Value};
 use slack_morphism::prelude::*;
@@ -44,6 +43,7 @@ fn prepare_listener_environment(
 }
 
 async fn slack_interaction_handler(
+    State(state): State<WebAppState>,
     Extension(event): Extension<SlackInteractionEvent>,
 ) -> Result<(), AppError> {
     match event {
@@ -99,15 +99,25 @@ async fn slack_interaction_handler(
                 return Err(AppError::action_error());
             };
 
-            let event_value = rich_text["elements"][0]["elements"][0]["text"].to_owned();
-            ///let event = Event::from_value()?;
+            // TODO: Ugly way to get the event id. Need to find a better way to do this.
+            let Some(event_value) = rich_text["elements"][0]["elements"][0]["text"].as_str() else {
+                return Err(AppError::action_error());
+            };
 
-            info!("Reported Event Block: {:?}", event_value);
+            let event = Event::from_json(event_value).map_err(|e| {
+                anyhow!(
+                    "Failed to parse event from value: {:?}. Error: {:?}",
+                    event_value,
+                    e
+                )
+            })?;
+
+            info!("Reported Event Block: {:?}", event);
             info!(
                 "Received interaction from {}. Action: {}, Value: {}",
                 username, action_id, value
             );
-            respond_with_replace(&response_url.to_string(), username, text).await?;
+            respond_with_replace(&response_url.to_string(), username, text, event.id).await?;
         }
         _ => {}
     }
@@ -115,9 +125,17 @@ async fn slack_interaction_handler(
     Ok(())
 }
 
-async fn respond_with_replace(response_url: &str, username: &str, text: &str) -> Result<()> {
+async fn respond_with_replace(
+    response_url: &str,
+    username: &str,
+    text: &str,
+    event_id: EventId,
+) -> Result<()> {
     let client = Client::new();
-    let response_text = format!("{} selected: {}", username, text);
+    let response_text = format!(
+        "`{}` selected `{}` for event id `{}`",
+        username, text, event_id
+    );
 
     let res = client
         .post(response_url)

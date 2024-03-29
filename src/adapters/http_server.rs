@@ -1,9 +1,11 @@
 mod app_errors;
 mod slack_interactions_route;
+use crate::actors::messages::RelayEventDispatcherMessage;
 use anyhow::{Context, Result};
 use axum::{extract::State, http::HeaderMap, response::Html};
 use axum::{response::IntoResponse, routing::get, Router};
 use handlebars::Handlebars;
+use ractor::ActorRef;
 use serde_json::json;
 use slack_interactions_route::slack_interactions_route;
 use std::env;
@@ -22,27 +24,36 @@ use tracing::Level;
 #[derive(Clone)]
 pub struct WebAppState {
     hb: Arc<Handlebars<'static>>,
+    event_dispatcher: ActorRef<RelayEventDispatcherMessage>,
 }
 
 pub struct HttpServer;
 
 impl HttpServer {
-    pub async fn run(cancellation_token: CancellationToken) -> Result<()> {
-        let web_app_state = create_web_app_state()?;
+    pub async fn run(
+        cancellation_token: CancellationToken,
+        event_dispatcher: ActorRef<RelayEventDispatcherMessage>,
+    ) -> Result<()> {
+        let web_app_state = create_web_app_state(event_dispatcher)?;
         let router = create_router(&web_app_state)?;
 
         start_http_server(router, cancellation_token).await
     }
 }
 
-fn create_web_app_state() -> Result<WebAppState> {
+fn create_web_app_state(
+    event_dispatcher: ActorRef<RelayEventDispatcherMessage>,
+) -> Result<WebAppState> {
     let templates_dir = env::var("TEMPLATES_DIR").unwrap_or_else(|_| "/app/templates".to_string());
     let mut hb = Handlebars::new();
 
     hb.register_template_file("root", format!("{}/root.hbs", templates_dir))
         .map_err(|e| anyhow::anyhow!("Failed to load template: {}", e))?;
 
-    Ok(WebAppState { hb: Arc::new(hb) })
+    Ok(WebAppState {
+        hb: Arc::new(hb),
+        event_dispatcher,
+    })
 }
 
 fn create_router<SlackLayer>(web_app_state: &WebAppState) -> Result<Router>
