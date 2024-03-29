@@ -101,8 +101,15 @@ impl<T: Subscribe> Actor for RelayEventDispatcher<T> {
         message: Self::Msg,
         state: &mut Self::State,
     ) -> Result<(), ActorProcessingErr> {
-        debug!("Handling message: {:?}", message);
         match message {
+            // TODO: Connect and Reconnect should probably be instead Fetch with
+            // a limit, which would be sent initially from main and then from
+            // the event enqueuer actor when it's done with the previous batch.
+            // This would reduce risk of backpressure because ractor has a
+            // hardcoded broadcast buffer size of 10 items. For the moment, we
+            // avoid this risk by just having a since filter for the Nostr
+            // request. DMs are not so common but we should fix this to avoid
+            // DOS
             RelayEventDispatcherMessage::Connect => {
                 if let Err(e) = self.handle_connection(myself, state, "Connecting").await {
                     error!("Failed to connect: {}", e);

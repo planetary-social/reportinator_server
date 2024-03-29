@@ -12,11 +12,15 @@ async fn main() -> Result<()> {
 
     if args.len() < 2 {
         eprintln!("Usage: {} <receiver_public_key>", args[0]);
+        eprintln!("Example:");
+        eprintln!(
+            r#"echo "I'm a boring comment, someone may report it because it's too boring" | ./target/debug/giftwrapper add5190be4673768546c18b565da3a699241f0e06a75e2dbc03f18663d1b7b27 | nak event ws://localhost"#
+        );
+
         std::process::exit(1);
     }
 
     let receiver_pubkey = PublicKey::from_str(&args[1]).expect("Failed to parse the public key");
-    println!("Receiver public key: {}", receiver_pubkey.to_string());
 
     let stdin = io::stdin();
     let mut iterator = stdin.lock().lines();
