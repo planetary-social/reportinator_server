@@ -1,6 +1,6 @@
 use crate::actors::messages::RelayEventDispatcherMessage;
 use crate::actors::NostrPort;
-use crate::domain_objects::GiftWrappedReportRequest;
+use anyhow::Result;
 use nostr_sdk::prelude::*;
 use ractor::{cast, concurrency::Duration, ActorRef};
 use tokio_util::sync::CancellationToken;
@@ -8,40 +8,56 @@ use tracing::{debug, error, info};
 
 #[derive(Clone)]
 pub struct NostrSubscriber {
-    relays: Vec<String>,
     filters: Vec<Filter>,
+    client: Client,
 }
 impl NostrSubscriber {
-    pub fn new(relays: Vec<String>, filters: Vec<Filter>) -> Self {
-        Self { relays, filters }
+    pub async fn create(relays: Vec<String>, filters: Vec<Filter>) -> Result<Self> {
+        let opts = Options::new()
+            .skip_disconnected_relays(true)
+            .wait_for_send(false)
+            .connection_timeout(Some(Duration::from_secs(5)))
+            .send_timeout(Some(Duration::from_secs(5)))
+            .wait_for_subscription(true);
+
+        let client = ClientBuilder::new().opts(opts).build();
+        for relay in relays.iter() {
+            client.add_relay(relay.clone()).await?;
+        }
+
+        Ok(Self { client, filters })
     }
 }
 
 #[async_trait]
 impl NostrPort for NostrSubscriber {
+    async fn connect(&self) -> Result<()> {
+        self.client.connect().await;
+        Ok(())
+    }
+
+    async fn reconnect(&self) -> Result<()> {
+        self.client.disconnect().await?;
+        self.client.connect().await;
+        Ok(())
+    }
+
+    async fn publish(&self, event: Event) -> Result<()> {
+        self.client.send_event(event).await?;
+        Ok(())
+    }
+
     async fn subscribe(
         &self,
         cancellation_token: CancellationToken,
         dispatcher_actor: ActorRef<RelayEventDispatcherMessage>,
     ) -> std::prelude::v1::Result<(), anyhow::Error> {
         let token_clone = cancellation_token.clone();
-        let opts = Options::new()
-            .wait_for_send(false)
-            .connection_timeout(Some(Duration::from_secs(5)))
-            .wait_for_subscription(true);
 
-        let client = ClientBuilder::new().opts(opts).build();
-
-        for relay in self.relays.iter() {
-            client.add_relay(relay.clone()).await?;
-        }
-
-        client.disconnect().await?;
-        client.connect().await;
         info!("Subscribing to {:?}", self.filters.clone());
-        client.subscribe(self.filters.clone(), None).await;
+        self.client.subscribe(self.filters.clone(), None).await;
 
-        let client_clone = client.clone();
+        let client_clone = self.client.clone();
         tokio::spawn(async move {
             token_clone.cancelled().await;
             debug!("Cancelling relay subscription worker");
@@ -51,17 +67,16 @@ impl NostrPort for NostrSubscriber {
         });
 
         debug!("Relay subscription worker started");
-        client
+        self.client
             .handle_notifications(|notification| async {
                 if cancellation_token.is_cancelled() {
                     return Ok(true);
                 }
 
                 if let RelayPoolNotification::Event { event, .. } = notification {
-                    let gift_wrapped_report_request = GiftWrappedReportRequest::try_from(*event)?;
                     cast!(
                         dispatcher_actor,
-                        RelayEventDispatcherMessage::EventReceived(gift_wrapped_report_request)
+                        RelayEventDispatcherMessage::EventReceived(*event)
                     )
                     .expect("Failed to cast event to dispatcher");
                 }

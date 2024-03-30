@@ -1,14 +1,18 @@
+use anyhow::Error;
 use axum::{
     http::StatusCode,
     response::{IntoResponse, Response},
 };
 
+#[derive(Debug)]
 enum AppErrorKind {
-    General(anyhow::Error),
+    General(Error),
     MissingResponseUrl,
-    ActionError,
+    // TODO: Let's be more specific later
+    SlackParsingError(String),
 }
 
+#[derive(Debug)]
 pub struct AppError {
     kind: AppErrorKind,
 }
@@ -22,8 +26,8 @@ impl AppError {
         Self::new(AppErrorKind::MissingResponseUrl)
     }
 
-    pub fn action_error() -> Self {
-        Self::new(AppErrorKind::ActionError)
+    pub fn slack_parsing_error(context: &str) -> Self {
+        Self::new(AppErrorKind::SlackParsingError(context.to_string()))
     }
 }
 
@@ -38,9 +42,9 @@ impl IntoResponse for AppError {
             AppErrorKind::MissingResponseUrl => {
                 (StatusCode::BAD_REQUEST, "Missing response URL.".to_string()).into_response()
             }
-            AppErrorKind::ActionError => (
+            AppErrorKind::SlackParsingError(context) => (
                 StatusCode::BAD_REQUEST,
-                "Action error: missing actions or values.".to_string(),
+                format!("Slack parsing error: {}.", context),
             )
                 .into_response(),
         }

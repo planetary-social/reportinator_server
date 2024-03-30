@@ -1,17 +1,14 @@
 use super::app_errors::AppError;
 use super::WebAppState;
 use crate::actors::messages::RelayEventDispatcherMessage;
-use crate::domain_objects::{ModerationCategory, ReportRequest};
+use crate::domain_objects::{ModeratedReport, ModerationCategory, ReportRequest};
 use anyhow::{anyhow, Context, Result};
 use axum::{extract::State, routing::post, Extension, Router};
 use nostr_sdk::prelude::*;
 use ractor::cast;
-use reportinator_server::domain_objects::moderated_report;
 use reqwest::Client as ReqwestClient;
 use serde_json::{json, Value};
 use slack_morphism::prelude::*;
-use std::borrow::Borrow;
-use std::ops::Deref;
 use std::sync::Arc;
 use std::{env, str::FromStr};
 use tracing::{error, info};
@@ -56,70 +53,8 @@ async fn slack_interaction_handler(
 ) -> Result<(), AppError> {
     match event {
         SlackInteractionEvent::BlockActions(block_actions_event) => {
-            let response_url = block_actions_event
-                .response_url
-                .map(|SlackResponseUrl(url)| url)
-                .ok_or(AppError::missing_response_url())?;
-
-            let username = block_actions_event
-                .user
-                .as_ref()
-                .and_then(|user| user.username.as_deref())
-                .unwrap_or("default_username");
-
-            let slack_interaction_action = block_actions_event
-                .actions
-                .as_ref()
-                .and_then(|v| v.first())
-                .ok_or(AppError::action_error())?;
-
-            let action_id = slack_interaction_action.action_id.as_ref();
-            let value = slack_interaction_action.value.as_deref().unwrap_or("");
-
-            let message_content_blocks = block_actions_event
-                .message
-                .as_ref()
-                .and_then(|message| message.content.blocks.as_ref())
-                .ok_or(AppError::action_error())?;
-
-            let maybe_block = message_content_blocks
-                .iter()
-                .find(|block| match block {
-                    SlackBlock::RichText(value) => value["block_id"]
-                        .as_str()
-                        .filter(|block_id| block_id == &"reportedEvent")
-                        .is_some(),
-                    _ => false,
-                })
-                .ok_or(AppError::action_error())?;
-
-            let SlackBlock::RichText(Value::Object(rich_text)) = maybe_block else {
-                return Err(AppError::action_error());
-            };
-
-            // TODO: Ugly way to get the event id. Need to find a better way to do this.
-            let Some(event_value) = rich_text["elements"][0]["elements"][0]["text"].as_str() else {
-                return Err(AppError::action_error());
-            };
-
-            let event = Event::from_json(event_value).map_err(|e| {
-                anyhow!(
-                    "Failed to parse event from value: {:?}. Error: {:?}",
-                    event_value,
-                    e
-                )
-            })?;
-
-            // The slack payload is the category id in the action_id, and the reporter pubkey in the value
-            let reporter_pubkey = Keys::from_str(&value)?.public_key();
-            let report_request = ReportRequest::new(event, reporter_pubkey, None);
-            let maybe_category = ModerationCategory::from_str(&action_id).ok();
-            let maybe_moderated_report = report_request.moderate(maybe_category);
-
-            info!(
-                "Received interaction from {}. Action: {}, Value: {}",
-                username, action_id, value
-            );
+            let (response_url, username, report_request, maybe_moderated_report) =
+                parse_slack_action(block_actions_event)?;
 
             let response_text = match &maybe_moderated_report {
                 Some(moderated_report) => {
@@ -130,6 +65,8 @@ async fn slack_interaction_handler(
                 }
                 None => format!("{} skipped moderation for {}", username, report_request),
             };
+
+            info!(response_text);
 
             maybe_moderated_report.map(|moderated_report| {
                 cast!(
@@ -144,6 +81,73 @@ async fn slack_interaction_handler(
     }
 
     Ok(())
+}
+
+fn parse_slack_action(
+    block_actions_event: SlackInteractionBlockActionsEvent,
+) -> Result<(Url, String, ReportRequest, Option<ModeratedReport>), AppError> {
+    let event_value = serde_json::to_value(block_actions_event)
+        .map_err(|e| anyhow!("Failed to convert block_actions_event to Value: {:?}", e))?;
+
+    let response_url = event_value["response_url"]
+        .as_str()
+        .ok_or_else(|| anyhow!("Missing response_url"))?
+        .parse::<Url>()
+        .map_err(|_| anyhow!("Invalid response_url"))?;
+
+    let username = event_value["user"]["username"]
+        .as_str()
+        .ok_or_else(|| anyhow!("Missing username"))?;
+
+    let action_value = event_value["actions"][0]["value"]
+        .as_str()
+        .unwrap_or_default();
+
+    let action_id = event_value["actions"][0]["action_id"]
+        .as_str()
+        .ok_or_else(|| anyhow!("Missing action_id"))?;
+
+    let reported_event_value = find_block_id(&event_value, "reportedEvent")?;
+    let reporter_text = find_block_id(&event_value, "reporterText")?;
+
+    let reported_event = Event::from_json(reported_event_value)
+        .map_err(|_| AppError::slack_parsing_error("reported_event"))?;
+
+    let reporter_pubkey = PublicKey::from_hex(action_value)
+        .map_err(|_| AppError::slack_parsing_error("reporter_pubkey"))?;
+
+    let report_request = ReportRequest::new(reported_event, reporter_pubkey, Some(reporter_text));
+
+    let maybe_category = ModerationCategory::from_str(action_id).ok();
+    let maybe_moderated_report = report_request.report(maybe_category)?;
+
+    Ok((
+        response_url,
+        username.to_string(),
+        report_request,
+        maybe_moderated_report,
+    ))
+}
+
+fn find_block_id(event_value: &Value, block_id_text: &str) -> Result<String, AppError> {
+    let reported_event_value = event_value["message"]["blocks"]
+        .as_array()
+        .and_then(|blocks| {
+            blocks.iter().find_map(|block| {
+                block["block_id"].as_str().and_then(|block_id| {
+                    if block_id == block_id_text {
+                        block["elements"].as_array()?.get(0)?["elements"]
+                            .as_array()?
+                            .get(0)?["text"]
+                            .as_str()
+                    } else {
+                        None
+                    }
+                })
+            })
+        })
+        .ok_or_else(|| anyhow!("Missing block_id with value {}", block_id_text))?;
+    Ok(reported_event_value.to_string())
 }
 
 async fn respond_with_replace(response_url: &str, response_text: &str) -> Result<()> {
@@ -179,4 +183,215 @@ fn slack_error_handler(
     error!("{:#?}", err);
 
     HttpStatusCode::BAD_REQUEST
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use serde_json::json;
+
+    #[test]
+    fn test_parse_slack_action_with_hateful() {
+        let reporter_pubkey = Keys::generate().public_key();
+        let slack_username = "daniel";
+        let category_name = "hate";
+        let reporter_text = Some("This is wrong, report it!".to_string());
+
+        let reported_event = EventBuilder::text_note(
+            "This is a hateful comment, will someone report me? I hate everything!",
+            [],
+        )
+        .to_event(&Keys::generate())
+        .unwrap();
+
+        let slack_actions_event = create_slack_actions_event(
+            &slack_username,
+            &category_name,
+            &reporter_pubkey,
+            &reporter_text,
+            &reported_event,
+        );
+
+        let (response_url, username, parsed_report_request, maybe_moderated_report) =
+            parse_slack_action(slack_actions_event).unwrap();
+
+        assert_eq!(
+            response_url,
+            Url::parse("https://hooks.slack.com/foobar").unwrap()
+        );
+        assert_eq!(username, "daniel");
+        assert!(maybe_moderated_report.is_some());
+        assert_eq!(parsed_report_request.reported_event(), &reported_event);
+        assert_eq!(parsed_report_request.reporter_pubkey(), &reporter_pubkey);
+        assert_eq!(
+            parsed_report_request.reporter_text(),
+            reporter_text.as_ref()
+        );
+    }
+
+    #[test]
+    fn test_parse_slack_action_skipped() {
+        let reporter_pubkey = Keys::generate().public_key();
+        let slack_username = "daniel";
+        let category_name = "skip";
+        let reporter_text = Some("This is wrong, report it!".to_string());
+
+        let reported_event = EventBuilder::text_note("This is not offensive", [])
+            .to_event(&Keys::generate())
+            .unwrap();
+
+        let slack_actions_event = create_slack_actions_event(
+            &slack_username,
+            &category_name,
+            &reporter_pubkey,
+            &reporter_text,
+            &reported_event,
+        );
+
+        let (response_url, username, parsed_report_request, maybe_moderated_report) =
+            parse_slack_action(slack_actions_event).unwrap();
+
+        assert_eq!(
+            response_url,
+            Url::parse("https://hooks.slack.com/foobar").unwrap()
+        );
+        assert_eq!(username, "daniel");
+        assert!(maybe_moderated_report.is_none());
+        assert_eq!(parsed_report_request.reported_event(), &reported_event);
+        assert_eq!(parsed_report_request.reporter_pubkey(), &reporter_pubkey);
+        assert_eq!(
+            parsed_report_request.reporter_text(),
+            reporter_text.as_ref()
+        );
+    }
+
+    fn create_slack_actions_event(
+        slack_username: &str,
+        category_name: &str,
+        reporter_pubkey: &PublicKey,
+        reporter_text: &Option<String>,
+        reported_event: &Event,
+    ) -> SlackInteractionBlockActionsEvent {
+        let block_actions_event_value = json!(
+            {
+                "team": {
+                  "id": "TDR0MCDJN",
+                  "domain": "planetary-app"
+                },
+                "user": {
+                  "id": "U05L89H590B",
+                  "team_id": "TDR0MCDJN",
+                  "username": slack_username,
+                  "name": slack_username,
+                },
+                "api_app_id": "A06RR9X4X44",
+                "container": {
+                  "type": "message",
+                  "message_ts": "1711744254.017869",
+                  "channel_id": "C06SBEF40G0",
+                  "is_ephemeral": false
+                },
+                "trigger_id": "6887356503683.467021421634.fc00b2034742a334ea777cece0315032",
+                "channel": {
+                  "id": "C06SBEF40G0",
+                  "name": "privategroup"
+                },
+                "message": {
+                  "ts": "1711744254.017869",
+                  "text": "New Nostr Event to moderate requested by pubkey `4a0a6fdc7006bb31dc8638ff8c3f5645a6801461671571dfd30cb194753124f5`",
+                  "blocks": [
+                    {
+                      "type": "section",
+                      "block_id": "xTbmE",
+                      "text": {
+                        "type": "mrkdwn",
+                        "text": "New Nostr Event to moderate requested by pubkey `4a0a6fdc7006bb31dc8638ff8c3f5645a6801461671571dfd30cb194753124f5`",
+                        "verbatim": false
+                      }
+                    },
+                    {
+                      "type": "rich_text",
+                      "block_id": "reporterText",
+                      "elements": [
+                        {
+                          "type": "rich_text_preformatted",
+                          "elements": [
+                            {
+                              "type": "text",
+                              "text": reporter_text,
+                            }
+                          ],
+                          "border": 0
+                        }
+                      ]
+                    },
+                    {
+                      "type": "rich_text",
+                      "block_id": "reportedEvent",
+                      "elements": [
+                        {
+                          "type": "rich_text_preformatted",
+                          "elements": [
+                            {
+                              "type": "text",
+                              "text": serde_json::to_string(&reported_event).unwrap(),
+                            }
+                          ],
+                          "border": 0
+                        }
+                      ]
+                    },
+                    {
+                      "type": "actions",
+                      "block_id": "PiXuG",
+                      "elements": [
+                        {
+                          "type": "button",
+                          "action_id": "skip",
+                          "text": {
+                            "type": "plain_text",
+                            "text": "Skip",
+                            "emoji": true
+                          },
+                          "value": "skip"
+                        },
+                        {
+                          "type": "button",
+                          "action_id": "hate",
+                          "text": {
+                            "type": "plain_text",
+                            "text": "hate",
+                            "emoji": true
+                          },
+                          "value": "4a0a6fdc7006bb31dc8638ff8c3f5645a6801461671571dfd30cb194753124f5"
+                        },
+                      ]
+                    }
+                  ],
+                  "user": "U06RNQLKN91",
+                  "bot_id": "B06R8BG0GJK"
+                },
+                "response_url": "https://hooks.slack.com/foobar",
+                "actions": [
+                  {
+                    "type": "button",
+                    "action_id": category_name,
+                    "block_id": "PiXuG",
+                    "text": {
+                      "type": "plain_text",
+                      "text": "hate/threatening",
+                      "emoji": true
+                    },
+                    "value": reporter_pubkey.to_hex(),
+                    "action_ts": "1711847398.994694"
+                  }
+                ],
+                "state": {
+                  "values": {}
+                }
+              }
+        );
+
+        serde_json::from_value(block_actions_event_value).unwrap()
+    }
 }

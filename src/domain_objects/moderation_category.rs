@@ -1,3 +1,5 @@
+use anyhow::anyhow;
+use nostr_sdk::Report;
 use std::str::FromStr;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -16,7 +18,7 @@ pub enum ModerationCategory {
 }
 
 impl ModerationCategory {
-    fn description(&self) -> &'static str {
+    pub fn description(&self) -> &'static str {
         match self {
             ModerationCategory::Hate => "Content that expresses, incites, or promotes hate based on race, gender, ethnicity, religion, nationality, sexual orientation, disability status, or caste. Hateful content aimed at non-protected groups (e.g., chess players) is harassment.",
             ModerationCategory::HateThreatening => "Hateful content that also includes violence or serious harm towards the targeted group based on race, gender, ethnicity, religion, nationality, sexual orientation, disability status, or caste.",
@@ -32,7 +34,7 @@ impl ModerationCategory {
         }
     }
 
-    fn nip56_report_type(&self) -> &'static str {
+    pub fn nip56_report_type(&self) -> Report {
         match self {
             ModerationCategory::Hate
             | ModerationCategory::HateThreatening
@@ -42,15 +44,15 @@ impl ModerationCategory {
             | ModerationCategory::SelfHarmIntent
             | ModerationCategory::SelfHarmInstructions
             | ModerationCategory::Violence
-            | ModerationCategory::ViolenceGraphic => "other",
+            | ModerationCategory::ViolenceGraphic => Report::Spam,
 
-            ModerationCategory::Sexual => "nudity",
+            ModerationCategory::Sexual => Report::Nudity,
 
-            ModerationCategory::SexualMinors => "illegal",
+            ModerationCategory::SexualMinors => Report::Illegal,
         }
     }
 
-    fn nip69(&self) -> &'static str {
+    pub fn nip69(&self) -> &'static str {
         match self {
             ModerationCategory::Hate => "IH",
             ModerationCategory::HateThreatening => "HC-bhd",
@@ -68,7 +70,7 @@ impl ModerationCategory {
 }
 
 impl FromStr for ModerationCategory {
-    type Err = ();
+    type Err = anyhow::Error;
 
     fn from_str(input: &str) -> Result<Self, Self::Err> {
         match input {
@@ -83,7 +85,7 @@ impl FromStr for ModerationCategory {
             "sexual/minors" => Ok(ModerationCategory::SexualMinors),
             "violence" => Ok(ModerationCategory::Violence),
             "violence/graphic" => Ok(ModerationCategory::ViolenceGraphic),
-            _ => Err(()),
+            _ => Err(anyhow!("Invalid moderation category {}", input)),
         }
     }
 }
@@ -95,12 +97,12 @@ mod tests {
     #[test]
     fn test_from_str() {
         assert_eq!(
-            ModerationCategory::from_str("hate"),
-            Ok(ModerationCategory::Hate)
+            ModerationCategory::from_str("hate").unwrap(),
+            ModerationCategory::Hate
         );
         assert_eq!(
-            ModerationCategory::from_str("harassment"),
-            Ok(ModerationCategory::Harassment)
+            ModerationCategory::from_str("harassment").unwrap(),
+            ModerationCategory::Harassment
         );
 
         assert!(ModerationCategory::from_str("non-existent").is_err());
@@ -115,7 +117,7 @@ mod tests {
     #[test]
     fn test_nip56_report_type() {
         let harassment = ModerationCategory::Harassment;
-        assert_eq!(harassment.nip56_report_type(), "other");
+        assert_eq!(harassment.nip56_report_type(), Report::Spam);
     }
 
     #[test]

@@ -44,7 +44,7 @@ async fn main() -> Result<()> {
 
     let relays = get_relays()?;
 
-    let nostr_subscriber = NostrSubscriber::new(relays, gift_wrap_filter);
+    let nostr_subscriber = NostrSubscriber::create(relays, gift_wrap_filter).await?;
     let google_publisher = GooglePublisher::create().await?;
 
     start_server(nostr_subscriber, google_publisher, reportinator_keys).await

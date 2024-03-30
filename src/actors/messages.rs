@@ -1,5 +1,6 @@
 use crate::actors::utilities::OutputPortSubscriber;
 use crate::domain_objects::*;
+use nostr_sdk::prelude::Event;
 use std::fmt::Debug;
 
 #[derive(Debug)]
@@ -7,7 +8,7 @@ pub enum RelayEventDispatcherMessage {
     Connect,
     Reconnect,
     SubscribeToEventReceived(OutputPortSubscriber<GiftWrappedReportRequest>),
-    EventReceived(GiftWrappedReportRequest),
+    EventReceived(Event),
     Publish(ModeratedReport),
 }
 

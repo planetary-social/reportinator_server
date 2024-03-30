@@ -53,6 +53,10 @@ where
 
 #[async_trait]
 pub trait NostrPort: Send + Sync + Clone + 'static {
+    async fn connect(&self) -> Result<()>;
+    async fn reconnect(&self) -> Result<()>;
+    async fn publish(&self, event: Event) -> Result<()>;
+
     async fn subscribe(
         &self,
         cancellation_token: CancellationToken,
@@ -111,11 +115,21 @@ impl<T: NostrPort> Actor for RelayEventDispatcher<T> {
             // request. DMs are not so common but we should fix this to avoid
             // DOS
             RelayEventDispatcherMessage::Connect => {
+                if let Err(e) = state.nostr_client.connect().await {
+                    error!("Failed to connect: {}", e);
+                    return Ok(());
+                }
+
                 if let Err(e) = self.handle_connection(myself, state, "Connecting").await {
                     error!("Failed to connect: {}", e);
                 }
             }
             RelayEventDispatcherMessage::Reconnect => {
+                if let Err(e) = state.nostr_client.reconnect().await {
+                    error!("Failed to reconnect: {}", e);
+                    return Ok(());
+                }
+
                 if let Err(e) = self.handle_connection(myself, state, "Reconnecting").await {
                     error!("Failed to reconnect: {}", e);
                 }
@@ -125,9 +139,25 @@ impl<T: NostrPort> Actor for RelayEventDispatcher<T> {
                 subscriber.subscribe_to_port(&state.event_received_output_port);
             }
             RelayEventDispatcherMessage::EventReceived(event) => {
-                state.event_received_output_port.send(event);
+                let gift_wrapped_report_request = match GiftWrappedReportRequest::try_from(event) {
+                    Ok(gift) => gift,
+                    Err(e) => {
+                        error!("Failed to get gift wrap event: {}", e);
+                        return Ok(());
+                    }
+                };
+
+                state
+                    .event_received_output_port
+                    .send(gift_wrapped_report_request);
             }
-            RelayEventDispatcherMessage::Publish(moderated_report) => {}
+            RelayEventDispatcherMessage::Publish(moderated_report) => {
+                state.nostr_client.publish(moderated_report.event()).await?;
+                info!(
+                    "Report {} published successfully",
+                    moderated_report.event().id()
+                );
+            }
         }
 
         Ok(())
@@ -233,6 +263,15 @@ mod tests {
 
     #[async_trait]
     impl NostrPort for TestNostrSubscriber {
+        async fn connect(&self) -> Result<()> {
+            Ok(())
+        }
+        async fn reconnect(&self) -> Result<()> {
+            Ok(())
+        }
+        async fn publish(&self, _event: Event) -> Result<()> {
+            Ok(())
+        }
         async fn subscribe(
             &self,
             cancellation_token: CancellationToken,
@@ -247,9 +286,7 @@ mod tests {
             while let Some(Some(event)) = self.event_receiver.lock().await.recv().await {
                 cast!(
                     dispatcher_actor,
-                    RelayEventDispatcherMessage::EventReceived(GiftWrappedReportRequest::try_from(
-                        event
-                    )?)
+                    RelayEventDispatcherMessage::EventReceived(event)
                 )
                 .expect("Failed to cast event to dispatcher");
             }

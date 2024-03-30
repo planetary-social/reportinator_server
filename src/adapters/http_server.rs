@@ -1,25 +1,19 @@
 mod app_errors;
+mod router;
 mod slack_interactions_route;
 use crate::actors::messages::RelayEventDispatcherMessage;
 use anyhow::{Context, Result};
-use axum::{extract::State, http::HeaderMap, response::Html};
-use axum::{response::IntoResponse, routing::get, Router};
+use axum::Router;
 use handlebars::Handlebars;
 use ractor::ActorRef;
-use serde_json::json;
-use slack_interactions_route::slack_interactions_route;
-use std::env;
+use router::create_router;
 use std::future::Future;
 use std::net::SocketAddr;
 use std::sync::Arc;
 use std::time::Duration;
 use tokio::time::timeout;
 use tokio_util::sync::CancellationToken;
-use tower_http::trace::{DefaultMakeSpan, DefaultOnResponse, TraceLayer};
-use tower_http::LatencyUnit;
-use tower_http::{timeout::TimeoutLayer, trace::DefaultOnFailure};
 use tracing::info;
-use tracing::Level;
 
 #[derive(Clone)]
 pub struct WebAppState {
@@ -28,54 +22,15 @@ pub struct WebAppState {
 }
 
 pub struct HttpServer;
-
 impl HttpServer {
     pub async fn run(
         cancellation_token: CancellationToken,
         event_dispatcher: ActorRef<RelayEventDispatcherMessage>,
     ) -> Result<()> {
-        let web_app_state = create_web_app_state(event_dispatcher)?;
-        let router = create_router(&web_app_state)?;
+        let router = create_router(event_dispatcher)?;
 
         start_http_server(router, cancellation_token).await
     }
-}
-
-fn create_web_app_state(
-    event_dispatcher: ActorRef<RelayEventDispatcherMessage>,
-) -> Result<WebAppState> {
-    let templates_dir = env::var("TEMPLATES_DIR").unwrap_or_else(|_| "/app/templates".to_string());
-    let mut hb = Handlebars::new();
-
-    hb.register_template_file("root", format!("{}/root.hbs", templates_dir))
-        .map_err(|e| anyhow::anyhow!("Failed to load template: {}", e))?;
-
-    Ok(WebAppState {
-        hb: Arc::new(hb),
-        event_dispatcher,
-    })
-}
-
-fn create_router<SlackLayer>(web_app_state: &WebAppState) -> Result<Router>
-where
-    Router<WebAppState>: From<SlackLayer>,
-{
-    let tracing_layer = TraceLayer::new_for_http()
-        .make_span_with(DefaultMakeSpan::new().level(Level::INFO))
-        .on_response(
-            DefaultOnResponse::new()
-                .level(Level::INFO)
-                .latency_unit(LatencyUnit::Millis),
-        )
-        .on_failure(DefaultOnFailure::new().level(Level::ERROR));
-
-    Ok(Router::new()
-        // TODO: Move this one away to its own file too
-        .route("/", get(serve_root_page))
-        .merge(slack_interactions_route()?)
-        .layer(tracing_layer)
-        .layer(TimeoutLayer::new(Duration::from_secs(1)))
-        .with_state(web_app_state.clone()))
 }
 
 async fn start_http_server(router: Router, cancellation_token: CancellationToken) -> Result<()> {
@@ -111,13 +66,4 @@ fn shutdown_hook(cancellation_token: CancellationToken) -> impl Future<Output = 
         cancellation_token.cancelled().await;
         info!("Exiting the process");
     }
-}
-
-async fn serve_root_page(
-    State(web_app_state): State<WebAppState>,
-    _headers: HeaderMap,
-) -> impl IntoResponse {
-    let body = web_app_state.hb.render("root", &json!({})).unwrap();
-
-    Html(body)
 }
