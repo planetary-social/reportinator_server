@@ -1,4 +1,4 @@
-use crate::actors::PubsubPublisher;
+use crate::actors::PubsubPort;
 use crate::domain_objects::ReportRequest;
 use anyhow::{Context, Result};
 use gcloud_sdk::{
@@ -33,7 +33,7 @@ impl GooglePublisher {
 }
 
 #[ractor::async_trait]
-impl PubsubPublisher for GooglePublisher {
+impl PubsubPort for GooglePublisher {
     async fn publish_event(&mut self, report_request: &ReportRequest) -> Result<()> {
         let pubsub_message = PubsubMessage {
             data: serde_json::to_vec(report_request)

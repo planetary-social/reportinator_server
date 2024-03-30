@@ -4,10 +4,10 @@ use anyhow::Result;
 use ractor::{Actor, ActorProcessingErr, ActorRef};
 use tracing::{error, info};
 
-pub struct EventEnqueuer<T: PubsubPublisher> {
+pub struct EventEnqueuer<T: PubsubPort> {
     _phantom: std::marker::PhantomData<T>,
 }
-impl<T: PubsubPublisher> Default for EventEnqueuer<T> {
+impl<T: PubsubPort> Default for EventEnqueuer<T> {
     fn default() -> Self {
         Self {
             _phantom: std::marker::PhantomData,
@@ -15,19 +15,19 @@ impl<T: PubsubPublisher> Default for EventEnqueuer<T> {
     }
 }
 
-pub struct State<T: PubsubPublisher> {
+pub struct State<T: PubsubPort> {
     pubsub_publisher: T,
 }
 
 #[ractor::async_trait]
-pub trait PubsubPublisher: Send + Sync + 'static {
+pub trait PubsubPort: Send + Sync + 'static {
     async fn publish_event(&mut self, event: &ReportRequest) -> Result<()>;
 }
 
 #[ractor::async_trait]
 impl<T> Actor for EventEnqueuer<T>
 where
-    T: PubsubPublisher + Send + Sync + Sized + 'static,
+    T: PubsubPort + Send + Sync + Sized + 'static,
 {
     type Msg = EventEnqueuerMessage;
     type State = State<T>;
@@ -89,7 +89,7 @@ mod tests {
     }
 
     #[ractor::async_trait]
-    impl PubsubPublisher for TestGooglePublisher {
+    impl PubsubPort for TestGooglePublisher {
         async fn publish_event(&mut self, event: &ReportRequest) -> Result<()> {
             self.published_events.lock().await.push(event.clone());
             Ok(())

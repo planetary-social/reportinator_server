@@ -7,18 +7,18 @@ use ractor::{Actor, ActorProcessingErr, ActorRef, OutputPort};
 use tokio_util::sync::CancellationToken;
 use tracing::{debug, error, info};
 
-pub struct RelayEventDispatcher<T: Subscribe> {
+pub struct RelayEventDispatcher<T: NostrPort> {
     _phantom: std::marker::PhantomData<T>,
 }
 
-impl<T: Subscribe> Default for RelayEventDispatcher<T> {
+impl<T: NostrPort> Default for RelayEventDispatcher<T> {
     fn default() -> Self {
         Self {
             _phantom: std::marker::PhantomData,
         }
     }
 }
-pub struct State<T: Subscribe> {
+pub struct State<T: NostrPort> {
     event_received_output_port: OutputPort<GiftWrappedReportRequest>,
     subscription_task_manager: Option<ServiceManager>,
     nostr_client: T,
@@ -26,7 +26,7 @@ pub struct State<T: Subscribe> {
 
 impl<T> RelayEventDispatcher<T>
 where
-    T: Subscribe,
+    T: NostrPort,
 {
     async fn handle_connection(
         &self,
@@ -52,7 +52,7 @@ where
 }
 
 #[async_trait]
-pub trait Subscribe: Send + Sync + Clone + 'static {
+pub trait NostrPort: Send + Sync + Clone + 'static {
     async fn subscribe(
         &self,
         cancellation_token: CancellationToken,
@@ -61,7 +61,7 @@ pub trait Subscribe: Send + Sync + Clone + 'static {
 }
 
 #[ractor::async_trait]
-impl<T: Subscribe> Actor for RelayEventDispatcher<T> {
+impl<T: NostrPort> Actor for RelayEventDispatcher<T> {
     type Msg = RelayEventDispatcherMessage;
     type State = State<T>;
     type Arguments = T;
@@ -142,7 +142,7 @@ async fn spawn_subscription_task<T>(
     state: &State<T>,
 ) -> Result<ServiceManager, ActorProcessingErr>
 where
-    T: Subscribe,
+    T: NostrPort,
 {
     let subscription_task_manager = ServiceManager::new();
 
@@ -168,7 +168,7 @@ pub struct RelaySubscriptionWorker<T> {
 
 impl<T> RelaySubscriptionWorker<T>
 where
-    T: Subscribe,
+    T: NostrPort,
 {
     fn new(
         cancellation_token: CancellationToken,
@@ -232,7 +232,7 @@ mod tests {
     }
 
     #[async_trait]
-    impl Subscribe for TestNostrSubscriber {
+    impl NostrPort for TestNostrSubscriber {
         async fn subscribe(
             &self,
             cancellation_token: CancellationToken,

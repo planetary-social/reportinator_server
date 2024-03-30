@@ -1,5 +1,5 @@
 use crate::actors::messages::RelayEventDispatcherMessage;
-use crate::actors::Subscribe;
+use crate::actors::NostrPort;
 use crate::domain_objects::GiftWrappedReportRequest;
 use nostr_sdk::prelude::*;
 use ractor::{cast, concurrency::Duration, ActorRef};
@@ -18,7 +18,7 @@ impl NostrSubscriber {
 }
 
 #[async_trait]
-impl Subscribe for NostrSubscriber {
+impl NostrPort for NostrSubscriber {
     async fn subscribe(
         &self,
         cancellation_token: CancellationToken,

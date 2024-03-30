@@ -5,11 +5,11 @@ mod service_manager;
 
 use crate::actors::{
     messages::{GiftUnwrapperMessage, RelayEventDispatcherMessage},
-    EventEnqueuer, GiftUnwrapper, RelayEventDispatcher, Subscribe,
+    EventEnqueuer, GiftUnwrapper, NostrPort, RelayEventDispatcher,
 };
 use crate::adapters::{GooglePublisher, HttpServer, NostrSubscriber};
 use crate::service_manager::ServiceManager;
-use actors::PubsubPublisher;
+use actors::PubsubPort;
 use anyhow::{Context, Result};
 use nostr_sdk::prelude::*;
 use ractor::cast;
@@ -74,8 +74,8 @@ async fn main() -> Result<()> {
 ///   │ RelayEventDispatcher  │                           │    EventEnqueuer    │
 ///   └───────────────────────┘                           └─────────────────────┘
 async fn start_server(
-    nostr_subscriber: impl Subscribe,
-    google_publisher: impl PubsubPublisher,
+    nostr_subscriber: impl NostrPort,
+    google_publisher: impl PubsubPort,
     reportinator_keys: Keys,
 ) -> Result<()> {
     let mut manager = ServiceManager::new();
