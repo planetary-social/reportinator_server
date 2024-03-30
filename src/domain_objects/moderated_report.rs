@@ -1,6 +1,7 @@
 use crate::domain_objects::{ModerationCategory, ReportRequest};
 use std::fmt::{self, Display, Formatter};
 
+#[derive(Debug)]
 pub struct ModeratedReport {
     pub request: ReportRequest,
     pub category: Option<ModerationCategory>,

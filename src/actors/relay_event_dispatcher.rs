@@ -127,6 +127,7 @@ impl<T: Subscribe> Actor for RelayEventDispatcher<T> {
             RelayEventDispatcherMessage::EventReceived(event) => {
                 state.event_received_output_port.send(event);
             }
+            RelayEventDispatcherMessage::Publish(moderated_report) => {}
         }
 
         Ok(())

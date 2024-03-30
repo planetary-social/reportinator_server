@@ -8,6 +8,7 @@ pub enum RelayEventDispatcherMessage {
     Reconnect,
     SubscribeToEventReceived(OutputPortSubscriber<GiftWrappedReportRequest>),
     EventReceived(GiftWrappedReportRequest),
+    Publish(ModeratedReport),
 }
 
 #[derive(Debug)]

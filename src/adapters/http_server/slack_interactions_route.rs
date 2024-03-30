@@ -1,13 +1,17 @@
 use super::app_errors::AppError;
 use super::WebAppState;
+use crate::actors::messages::RelayEventDispatcherMessage;
+use crate::domain_objects::{ModerationCategory, ReportRequest};
 use anyhow::{anyhow, Context, Result};
 use axum::{extract::State, routing::post, Extension, Router};
-use gcloud_sdk::tonic::IntoRequest;
 use nostr_sdk::prelude::*;
-use reportinator_server::domain_objects::{ModeratedReport, ModerationCategory, ReportRequest};
-use reqwest::Client;
+use ractor::cast;
+use reportinator_server::domain_objects::moderated_report;
+use reqwest::Client as ReqwestClient;
 use serde_json::{json, Value};
 use slack_morphism::prelude::*;
+use std::borrow::Borrow;
+use std::ops::Deref;
 use std::sync::Arc;
 use std::{env, str::FromStr};
 use tracing::{error, info};
@@ -45,14 +49,16 @@ fn prepare_listener_environment(
 }
 
 async fn slack_interaction_handler(
-    State(state): State<WebAppState>,
+    State(WebAppState {
+        event_dispatcher, ..
+    }): State<WebAppState>,
     Extension(event): Extension<SlackInteractionEvent>,
 ) -> Result<(), AppError> {
     match event {
         SlackInteractionEvent::BlockActions(block_actions_event) => {
-            let SlackResponseUrl(response_url) = block_actions_event
+            let response_url = block_actions_event
                 .response_url
-                .as_ref()
+                .map(|SlackResponseUrl(url)| url)
                 .ok_or(AppError::missing_response_url())?;
 
             let username = block_actions_event
@@ -61,43 +67,33 @@ async fn slack_interaction_handler(
                 .and_then(|user| user.username.as_deref())
                 .unwrap_or("default_username");
 
-            let (
-                SlackActionId(action_id),
-                Some(value),
-                Some(SlackBlockText::Plain(SlackBlockPlainText { text, .. })),
-            ) = block_actions_event
+            let slack_interaction_action = block_actions_event
                 .actions
                 .as_ref()
                 .and_then(|v| v.first())
-                .map(|v| (&v.action_id, &v.value, &v.text))
-                .ok_or(AppError::action_error())?
-            else {
-                return Err(AppError::action_error());
-            };
+                .ok_or(AppError::action_error())?;
 
-            let maybe_block = if let Some(ref message) = block_actions_event.message {
-                message.content.blocks.as_ref().and_then(|blocks| {
-                    blocks.iter().find_map(|block| match block {
-                        SlackBlock::RichText(value) => {
-                            // Assuming 'value' is a serde_json::Value that contains your desired structure
-                            // You'll need to access the structure of 'value' to find the block_id
-                            if let Some(block_id_value) = value.get("block_id") {
-                                if let Value::String(block_id_str) = block_id_value {
-                                    if block_id_str == "reportedEvent" {
-                                        return Some(block);
-                                    }
-                                }
-                            }
-                            None
-                        }
-                        _ => None,
-                    })
+            let action_id = slack_interaction_action.action_id.as_ref();
+            let value = slack_interaction_action.value.as_deref().unwrap_or("");
+
+            let message_content_blocks = block_actions_event
+                .message
+                .as_ref()
+                .and_then(|message| message.content.blocks.as_ref())
+                .ok_or(AppError::action_error())?;
+
+            let maybe_block = message_content_blocks
+                .iter()
+                .find(|block| match block {
+                    SlackBlock::RichText(value) => value["block_id"]
+                        .as_str()
+                        .filter(|block_id| block_id == &"reportedEvent")
+                        .is_some(),
+                    _ => false,
                 })
-            } else {
-                return Err(AppError::action_error());
-            };
+                .ok_or(AppError::action_error())?;
 
-            let Some(SlackBlock::RichText(Value::Object(rich_text))) = maybe_block else {
+            let SlackBlock::RichText(Value::Object(rich_text)) = maybe_block else {
                 return Err(AppError::action_error());
             };
 
@@ -117,23 +113,31 @@ async fn slack_interaction_handler(
             // The slack payload is the category id in the action_id, and the reporter pubkey in the value
             let reporter_pubkey = Keys::from_str(&value)?.public_key();
             let report_request = ReportRequest::new(event, reporter_pubkey, None);
-            let category = ModerationCategory::from_str(&action_id).ok();
-            let moderated_report = report_request.moderate(category);
+            let maybe_category = ModerationCategory::from_str(&action_id).ok();
+            let maybe_moderated_report = report_request.moderate(maybe_category);
 
             info!(
                 "Received interaction from {}. Action: {}, Value: {}",
                 username, action_id, value
             );
 
-            let response_text = match moderated_report {
+            let response_text = match &maybe_moderated_report {
                 Some(moderated_report) => {
                     format!(
-                        "Event reported by {} has been moderated with category: {}",
+                        "Event reported by {} has been moderated and an anonymous report event will be published soon:\n```{}```",
                         username, moderated_report
                     )
                 }
                 None => format!("{} skipped moderation for {}", username, report_request),
             };
+
+            maybe_moderated_report.map(|moderated_report| {
+                cast!(
+                    event_dispatcher,
+                    RelayEventDispatcherMessage::Publish(moderated_report)
+                )
+            });
+
             respond_with_replace(&response_url.to_string(), &response_text).await?;
         }
         _ => {}
@@ -143,7 +147,7 @@ async fn slack_interaction_handler(
 }
 
 async fn respond_with_replace(response_url: &str, response_text: &str) -> Result<()> {
-    let client = Client::new();
+    let client = ReqwestClient::new();
 
     let res = client
         .post(response_url)
