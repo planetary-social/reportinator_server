@@ -1,6 +1,6 @@
 use super::slack_interactions_route::slack_interactions_route;
 use super::WebAppState;
-use crate::actors::messages::RelayEventDispatcherMessage;
+use crate::actors::messages::SupervisorMessage;
 use anyhow::Result;
 use axum::{extract::State, http::HeaderMap, response::Html};
 use axum::{response::IntoResponse, routing::get, Router};
@@ -15,8 +15,8 @@ use tower_http::LatencyUnit;
 use tower_http::{timeout::TimeoutLayer, trace::DefaultOnFailure};
 use tracing::Level;
 
-pub fn create_router(event_dispatcher: ActorRef<RelayEventDispatcherMessage>) -> Result<Router> {
-    let web_app_state = create_web_app_state(event_dispatcher)?;
+pub fn create_router(message_dispatcher: ActorRef<SupervisorMessage>) -> Result<Router> {
+    let web_app_state = create_web_app_state(message_dispatcher)?;
     let tracing_layer = TraceLayer::new_for_http()
         .make_span_with(DefaultMakeSpan::new().level(Level::INFO))
         .on_response(
@@ -35,9 +35,7 @@ pub fn create_router(event_dispatcher: ActorRef<RelayEventDispatcherMessage>) ->
         .with_state(web_app_state))
 }
 
-fn create_web_app_state(
-    event_dispatcher: ActorRef<RelayEventDispatcherMessage>,
-) -> Result<WebAppState> {
+fn create_web_app_state(message_dispatcher: ActorRef<SupervisorMessage>) -> Result<WebAppState> {
     let templates_dir = env::var("TEMPLATES_DIR").unwrap_or_else(|_| "/app/templates".to_string());
     let mut hb = Handlebars::new();
 
@@ -46,7 +44,7 @@ fn create_web_app_state(
 
     Ok(WebAppState {
         hb: Arc::new(hb),
-        event_dispatcher,
+        event_dispatcher: message_dispatcher,
     })
 }
 

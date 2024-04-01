@@ -1,6 +1,6 @@
 use super::app_errors::AppError;
 use super::WebAppState;
-use crate::actors::messages::RelayEventDispatcherMessage;
+use crate::actors::messages::SupervisorMessage;
 use crate::domain_objects::{ModeratedReport, ModerationCategory, ReportRequest};
 use anyhow::{anyhow, Context, Result};
 use axum::{extract::State, routing::post, Extension, Router};
@@ -48,7 +48,8 @@ fn prepare_listener_environment(
 
 async fn slack_interaction_handler(
     State(WebAppState {
-        event_dispatcher, ..
+        event_dispatcher: message_dispatcher,
+        ..
     }): State<WebAppState>,
     Extension(event): Extension<SlackInteractionEvent>,
 ) -> Result<(), AppError> {
@@ -71,8 +72,8 @@ async fn slack_interaction_handler(
 
             maybe_moderated_report.map(|moderated_report| {
                 cast!(
-                    event_dispatcher,
-                    RelayEventDispatcherMessage::Publish(moderated_report)
+                    message_dispatcher,
+                    SupervisorMessage::Publish(moderated_report)
                 )
             });
 
@@ -201,7 +202,7 @@ mod tests {
     #[tokio::test]
     async fn test_fails_with_empty_request() {
         let (test_actor_ref, _receiver_actor_handle) =
-            TestActor::<RelayEventDispatcherMessage>::spawn_default()
+            TestActor::<SupervisorMessage>::spawn_default()
                 .await
                 .unwrap();
         let state = WebAppState {

@@ -1,7 +1,7 @@
 mod app_errors;
 mod router;
 mod slack_interactions_route;
-use crate::actors::messages::RelayEventDispatcherMessage;
+use crate::actors::messages::SupervisorMessage;
 use anyhow::{Context, Result};
 use axum::Router;
 use handlebars::Handlebars;
@@ -18,14 +18,14 @@ use tracing::info;
 #[derive(Clone)]
 pub struct WebAppState {
     hb: Arc<Handlebars<'static>>,
-    event_dispatcher: ActorRef<RelayEventDispatcherMessage>,
+    event_dispatcher: ActorRef<SupervisorMessage>,
 }
 
 pub struct HttpServer;
 impl HttpServer {
     pub async fn run(
         cancellation_token: CancellationToken,
-        event_dispatcher: ActorRef<RelayEventDispatcherMessage>,
+        event_dispatcher: ActorRef<SupervisorMessage>,
     ) -> Result<()> {
         let router = create_router(event_dispatcher)?;
 

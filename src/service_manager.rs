@@ -42,7 +42,13 @@ impl ServiceManager {
         let name = Some(simplify_type_name(std::any::type_name::<A>()));
         let (actor_ref, actor_handle) = Actor::spawn(name, actor, args).await?;
         self.tracker.reopen();
-        self.tracker.spawn(actor_handle);
+        let token = self.token.clone();
+        self.tracker.spawn(async move {
+            if let Err(e) = actor_handle.await {
+                error!("Actor failed: {}", e);
+            }
+            token.cancel()
+        });
         self.tracker.close();
 
         self.actors.push(actor_ref.get_cell());
@@ -54,6 +60,7 @@ impl ServiceManager {
         Ok(actor_ref)
     }
 
+    #[allow(unused)]
     pub async fn spawn_blocking_actor<A>(
         &mut self,
         actor: A,
@@ -86,7 +93,7 @@ impl ServiceManager {
     }
 
     // Spawn through a function that receives a cancellation token
-    #[allow(dead_code)]
+    #[allow(unused)]
     pub fn spawn_service<F, Fut>(&self, task: F) -> JoinHandle<()>
     where
         F: FnOnce(CancellationToken) -> Fut + Send + 'static,

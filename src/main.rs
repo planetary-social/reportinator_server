@@ -3,16 +3,12 @@ mod adapters;
 mod domain_objects;
 mod service_manager;
 
-use crate::actors::{
-    messages::{GiftUnwrapperMessage, RelayEventDispatcherMessage},
-    EventEnqueuer, GiftUnwrapper, NostrPort, RelayEventDispatcher,
-};
+use crate::actors::Supervisor;
 use crate::adapters::{GooglePublisher, HttpServer, NostrSubscriber};
 use crate::service_manager::ServiceManager;
-use actors::PubsubPort;
+use actors::{NostrPort, PubsubPort};
 use anyhow::{Context, Result};
 use nostr_sdk::prelude::*;
-use ractor::cast;
 use std::env;
 use tracing::info;
 use tracing_subscriber::{fmt, prelude::*, EnvFilter};
@@ -81,33 +77,14 @@ async fn start_server(
     let mut manager = ServiceManager::new();
 
     // Spawn actors and wire them together
-    let event_dispatcher = manager
-        .spawn_actor(RelayEventDispatcher::default(), nostr_subscriber)
+    let supervisor = manager
+        .spawn_actor(
+            Supervisor::default(),
+            (nostr_subscriber, google_publisher, reportinator_keys),
+        )
         .await?;
 
-    let gift_unwrapper = manager
-        .spawn_blocking_actor(GiftUnwrapper, reportinator_keys.clone())
-        .await?;
-
-    cast!(
-        event_dispatcher,
-        RelayEventDispatcherMessage::SubscribeToEventReceived(Box::new(gift_unwrapper.clone()))
-    )?;
-
-    let event_enqueuer = manager
-        .spawn_actor(EventEnqueuer::default(), google_publisher)
-        .await?;
-
-    cast!(
-        gift_unwrapper,
-        GiftUnwrapperMessage::SubscribeToEventUnwrapped(Box::new(event_enqueuer))
-    )?;
-
-    // Connect as the last message once everything is wired up
-    cast!(event_dispatcher, RelayEventDispatcherMessage::Connect)?;
-
-    manager
-        .spawn_service(|cancellation_token| HttpServer::run(cancellation_token, event_dispatcher));
+    manager.spawn_service(|cancellation_token| HttpServer::run(cancellation_token, supervisor));
 
     manager
         .listen_stop_signals()

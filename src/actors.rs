@@ -7,6 +7,9 @@ pub use gift_unwrapper::GiftUnwrapper;
 pub mod event_enqueuer;
 pub use event_enqueuer::{EventEnqueuer, PubsubPort};
 
+pub mod supervisor;
+pub use supervisor::Supervisor;
+
 pub mod utilities;
 #[cfg(test)]
 pub use utilities::TestActor;

@@ -4,6 +4,11 @@ use nostr_sdk::prelude::Event;
 use std::fmt::Debug;
 
 #[derive(Debug)]
+pub enum SupervisorMessage {
+    Publish(ModeratedReport),
+}
+
+#[derive(Debug)]
 pub enum RelayEventDispatcherMessage {
     Connect,
     Reconnect,
