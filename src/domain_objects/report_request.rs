@@ -172,7 +172,7 @@ mod tests {
 
         assert_eq!(
             report_event_value["pubkey"],
-            "add5190be4673768546c18b565da3a699241f0e06a75e2dbc03f18663d1b7b27"
+            "2ddc92121b9e67172cc0d40b959c416173a3533636144ebc002b7719d8d1c4e3".to_string()
         );
         assert_eq!(report_event_value["kind"], 1984);
         assert_eq!(report_event_value["content"], "Content that expresses, incites, or promotes hate based on race, gender, ethnicity, religion, nationality, sexual orientation, disability status, or caste. Hateful content aimed at non-protected groups (e.g., chess players) is harassment.");

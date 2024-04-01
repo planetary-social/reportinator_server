@@ -10,6 +10,7 @@ default-run = "reportinator_server"
 anyhow = "1.0.81"
 axum = "0.7.5"
 env_logger = "0.11.3"
+futures = "0.3.30"
 gcloud-sdk = { version = "0.24.4", features = ["google-pubsub-v1"] }
 handlebars = "5.1.2"
 http-body-util = "0.1.1"

@@ -1,6 +1,7 @@
 use crate::actors::messages::RelayEventDispatcherMessage;
 use crate::actors::NostrPort;
 use anyhow::Result;
+use futures::future::join_all;
 use nostr_sdk::prelude::*;
 use ractor::{cast, concurrency::Duration, ActorRef};
 use tokio_util::sync::CancellationToken;
@@ -52,12 +53,8 @@ impl NostrPort for NostrSubscriber {
         cancellation_token: CancellationToken,
         dispatcher_actor: ActorRef<RelayEventDispatcherMessage>,
     ) -> std::prelude::v1::Result<(), anyhow::Error> {
-        let token_clone = cancellation_token.clone();
-
-        info!("Subscribing to {:?}", self.filters.clone());
-        self.client.subscribe(self.filters.clone(), None).await;
-
         let client_clone = self.client.clone();
+        let token_clone = cancellation_token.clone();
         tokio::spawn(async move {
             token_clone.cancelled().await;
             debug!("Cancelling relay subscription worker");
@@ -66,7 +63,31 @@ impl NostrPort for NostrSubscriber {
             }
         });
 
-        debug!("Relay subscription worker started");
+        let cancel_and_reconnect = || async {
+            // If it was not cancelled we want to retry, so cancel manually and reconnect
+            if !cancellation_token.is_cancelled() {
+                cancellation_token.cancel();
+                if let Err(e) = dispatcher_actor
+                    .send_after(Duration::from_secs(10), || {
+                        RelayEventDispatcherMessage::Reconnect
+                    })
+                    .await
+                {
+                    error!("Failed to send reconnect message: {}", e);
+                }
+            }
+        };
+
+        // If not connected don't event try to subscribe
+        if all_disconnected(&self.client).await {
+            error!("All relays are disconnected, not subscribing");
+            cancel_and_reconnect().await;
+            return Ok(());
+        }
+
+        info!("Subscribing to {:?}", self.filters.clone());
+        //let opts = SubscribeAutoCloseOptions::default().filter(FilterOptions::WaitForEventsAfterEOSE(10));
+        self.client.subscribe(self.filters.clone(), None).await;
         self.client
             .handle_notifications(|notification| async {
                 if cancellation_token.is_cancelled() {
@@ -86,13 +107,20 @@ impl NostrPort for NostrSubscriber {
             })
             .await?;
 
-        // If it was not cancelled we want to retry, so cancel manually and reconnect
-        if !cancellation_token.is_cancelled() {
-            cast!(dispatcher_actor, RelayEventDispatcherMessage::Reconnect)
-                .expect("Failed to cast reconnect message");
-            cancellation_token.cancel();
-        }
-
+        cancel_and_reconnect().await;
         Ok(())
     }
+}
+
+async fn all_disconnected(client: &Client) -> bool {
+    let relays = client.pool().relays().await;
+
+    let futures: Vec<_> = relays
+        .iter()
+        .map(|(_, relay)| relay.is_connected())
+        .collect();
+
+    let results = join_all(futures).await;
+
+    results.iter().all(|&is_connected| !is_connected)
 }

@@ -2157,6 +2157,7 @@ dependencies = [
  "anyhow",
  "axum 0.7.5",
  "env_logger",
+ "futures",
  "gcloud-sdk",
  "handlebars",
  "http-body-util",
