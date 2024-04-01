@@ -65,7 +65,10 @@ async fn slack_interaction_handler(
                         username, moderated_report
                     )
                 }
-                None => format!("{} skipped moderation for {}", username, report_request),
+                None => format!(
+                    "{} skipped moderation request:\n```{}```",
+                    username, report_request
+                ),
             };
 
             info!(response_text);

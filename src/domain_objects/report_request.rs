@@ -104,13 +104,7 @@ impl ReportRequest {
 
 impl Display for ReportRequest {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        write!(
-            f,
-            "ReportRequest {{ reported_event: {}, reporter_pubkey: {}, reporter_text: {:?} }}",
-            self.reported_event.as_json(),
-            self.reporter_pubkey,
-            self.reporter_text
-        )
+        write!(f, "{}", serde_json::to_string_pretty(&self).unwrap())
     }
 }
 

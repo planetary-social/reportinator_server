@@ -2,6 +2,7 @@ use crate::domain_objects::ModerationCategory;
 use anyhow::Result;
 use nostr_sdk::prelude::*;
 use serde::{Deserialize, Serialize};
+use serde_json;
 use std::env;
 use std::fmt::{self, Display, Formatter};
 
@@ -62,6 +63,6 @@ impl ModeratedReport {
 
 impl Display for ModeratedReport {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        write!(f, "{}", self.event.as_json())
+        write!(f, "{}", serde_json::to_string_pretty(&self.event).unwrap())
     }
 }

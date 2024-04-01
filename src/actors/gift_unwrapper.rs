@@ -1,6 +1,6 @@
 use crate::actors::messages::GiftUnwrapperMessage;
 use crate::domain_objects::ReportRequest;
-use anyhow::{anyhow, Result};
+use anyhow::Result;
 use nostr_sdk::prelude::*;
 use ractor::{Actor, ActorProcessingErr, ActorRef, OutputPort};
 use tracing::{error, info};
