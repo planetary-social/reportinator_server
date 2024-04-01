@@ -110,7 +110,7 @@ mod tests {
 
         let messages_received = Arc::new(Mutex::new(Vec::<ReportRequest>::new()));
         let (receiver_actor_ref, receiver_actor_handle) =
-            Actor::spawn(None, TestActor::default(), messages_received.clone())
+            Actor::spawn(None, TestActor::default(), Some(messages_received.clone()))
                 .await
                 .unwrap();
 

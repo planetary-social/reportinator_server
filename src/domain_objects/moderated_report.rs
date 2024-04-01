@@ -58,10 +58,6 @@ impl ModeratedReport {
     pub fn event(&self) -> Event {
         self.event.clone()
     }
-
-    pub fn to_json(&self) -> String {
-        serde_json::to_string(self).expect("Failed to serialize ModeratedReport to JSON")
-    }
 }
 
 impl Display for ModeratedReport {

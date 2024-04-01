@@ -12,6 +12,7 @@ impl GiftWrappedReportRequest {
         GiftWrappedReportRequest(event)
     }
 
+    #[allow(unused)]
     pub fn as_json(&self) -> String {
         self.0.as_json()
     }

@@ -1,11 +1,22 @@
 use anyhow::Result;
+use ractor::SpawnErr;
 use ractor::{Actor, ActorProcessingErr, ActorRef};
 use std::sync::Arc;
 use tokio::sync::Mutex;
+use tokio::task::JoinHandle;
 
 pub type TestActorMessagesReceived<T> = Arc<Mutex<Vec<T>>>;
 pub struct TestActor<T> {
     _phantom: std::marker::PhantomData<T>,
+}
+
+impl<T> TestActor<T>
+where
+    T: Send + Sync + 'static,
+{
+    pub async fn spawn_default() -> Result<(ActorRef<T>, JoinHandle<()>), SpawnErr> {
+        Actor::spawn(None, TestActor::<T>::default(), None).await
+    }
 }
 
 impl<T> Default for TestActor<T> {
@@ -17,7 +28,7 @@ impl<T> Default for TestActor<T> {
 }
 
 pub struct TestActorState<T> {
-    pub messages_received: TestActorMessagesReceived<T>,
+    pub messages_received: Option<TestActorMessagesReceived<T>>,
 }
 
 #[ractor::async_trait]
@@ -27,12 +38,12 @@ where
 {
     type Msg = T;
     type State = TestActorState<T>;
-    type Arguments = TestActorMessagesReceived<T>;
+    type Arguments = Option<TestActorMessagesReceived<T>>;
 
     async fn pre_start(
         &self,
         _: ActorRef<Self::Msg>,
-        messages_received: TestActorMessagesReceived<T>,
+        messages_received: Option<TestActorMessagesReceived<T>>,
     ) -> Result<Self::State, ActorProcessingErr> {
         let state = TestActorState { messages_received };
         Ok(state)
@@ -44,7 +55,10 @@ where
         message: Self::Msg,
         state: &mut Self::State,
     ) -> Result<(), ActorProcessingErr> {
-        state.messages_received.lock().await.push(message);
+        if let Some(messages_received) = &state.messages_received {
+            messages_received.lock().await.push(message);
+        };
+
         Ok(())
     }
 }

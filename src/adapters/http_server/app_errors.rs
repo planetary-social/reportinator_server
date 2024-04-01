@@ -7,7 +7,6 @@ use axum::{
 #[derive(Debug)]
 enum AppErrorKind {
     General(Error),
-    MissingResponseUrl,
     // TODO: Let's be more specific later
     SlackParsingError(String),
 }
@@ -20,10 +19,6 @@ pub struct AppError {
 impl AppError {
     fn new(kind: AppErrorKind) -> Self {
         Self { kind }
-    }
-
-    pub fn missing_response_url() -> Self {
-        Self::new(AppErrorKind::MissingResponseUrl)
     }
 
     pub fn slack_parsing_error(context: &str) -> Self {
@@ -39,9 +34,6 @@ impl IntoResponse for AppError {
                 format!("Something went wrong: {}", err),
             )
                 .into_response(),
-            AppErrorKind::MissingResponseUrl => {
-                (StatusCode::BAD_REQUEST, "Missing response URL.".to_string()).into_response()
-            }
             AppErrorKind::SlackParsingError(context) => (
                 StatusCode::BAD_REQUEST,
                 format!("Slack parsing error: {}.", context),

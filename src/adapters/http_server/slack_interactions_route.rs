@@ -20,15 +20,16 @@ pub fn slack_interactions_route() -> Result<Router<WebAppState>> {
         .context("Missing SLACK_SIGNING_SECRET")
         .map(|secret| secret.into())?;
     let listener = SlackEventsAxumListener::<SlackHyperHttpsConnector>::new(listener_environment);
+    let slack_layer = listener
+        .events_layer(&signing_secret)
+        .with_event_extractor(SlackEventsExtractors::interaction_event());
 
-    Ok(Router::new().route(
+    let route = Router::new().route(
         "/slack/interactions",
-        post(slack_interaction_handler).layer(
-            listener
-                .events_layer(&signing_secret)
-                .with_event_extractor(SlackEventsExtractors::interaction_event()),
-        ),
-    ))
+        post(slack_interaction_handler).layer(slack_layer),
+    );
+
+    Ok(route)
 }
 
 fn prepare_slack_client() -> Result<Arc<SlackHyperClient>> {
@@ -117,7 +118,6 @@ fn parse_slack_action(
         .map_err(|_| AppError::slack_parsing_error("reporter_pubkey"))?;
 
     let report_request = ReportRequest::new(reported_event, reporter_pubkey, Some(reporter_text));
-
     let maybe_category = ModerationCategory::from_str(action_id).ok();
     let maybe_moderated_report = report_request.report(maybe_category)?;
 
@@ -188,7 +188,43 @@ fn slack_error_handler(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::actors::TestActor;
+    use axum::{
+        body::Body,
+        http::{Request, StatusCode},
+    };
+    use handlebars::Handlebars;
+    use http_body_util::BodyExt;
     use serde_json::json;
+    use tower::ServiceExt;
+
+    #[tokio::test]
+    async fn test_fails_with_empty_request() {
+        let (test_actor_ref, _receiver_actor_handle) =
+            TestActor::<RelayEventDispatcherMessage>::spawn_default()
+                .await
+                .unwrap();
+        let state = WebAppState {
+            event_dispatcher: test_actor_ref,
+            hb: Arc::new(Handlebars::new()),
+        };
+
+        let router = slack_interactions_route().unwrap().with_state(state);
+
+        let response = router
+            .oneshot(
+                Request::builder()
+                    .uri("/slack/interactions")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(response.status(), StatusCode::BAD_REQUEST);
+        let body = response.into_body().collect().await.unwrap().to_bytes();
+        assert!(body.is_empty());
+    }
 
     #[test]
     fn test_parse_slack_action_with_hateful() {

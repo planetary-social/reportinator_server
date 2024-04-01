@@ -4,7 +4,7 @@ use std::fmt::Debug;
 
 pub type OutputPortSubscriber<InputMessage> = Box<dyn OutputPortSubscriberTrait<InputMessage>>;
 
-pub trait OutputPortSubscriberTrait<I>: Debug + Send
+pub trait OutputPortSubscriberTrait<I>: Debug + Send + Sync
 where
     I: Send + Clone + Debug + 'static,
 {
