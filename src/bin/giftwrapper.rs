@@ -28,7 +28,9 @@ async fn main() -> Result<()> {
         .expect("Failed to read message from stdin")
         .expect("Failed to read line");
 
-    let sender_keys = Keys::generate();
+    // A safe test account with pubkey 817eaa4193d9a571c70b445c2c9b4ec0df306952f9784dfbd6eac680b19b2693
+    let test_secret = "7786a6328328930d6da0d494524dc3a8597abd8f41616621fabb7ad60c9ef143";
+    let sender_keys = Keys::parse(test_secret).expect("Failed to parse the secret");
     let reported_event = EventBuilder::text_note(&message, []).to_event(&sender_keys)?;
     let reporter_pubkey = sender_keys.public_key();
     let reporter_text = Some("This is wrong, report it!".to_string());
