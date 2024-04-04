@@ -172,8 +172,8 @@ mod tests {
         assert_eq!(report_event_value["content"], "Content that expresses, incites, or promotes hate based on race, gender, ethnicity, religion, nationality, sexual orientation, disability status, or caste. Hateful content aimed at non-protected groups (e.g., chess players) is harassment.");
 
         let expected_tags = vec![
-            json!(["p", reported_event.pubkey, "spam"]),
-            json!(["e", reported_event.id, "spam"]),
+            json!(["p", reported_event.pubkey, "other"]),
+            json!(["e", reported_event.id, "other"]),
             json!(["L", "MOD"]),
             json!(["l", "MOD>IH", "MOD"]),
         ];

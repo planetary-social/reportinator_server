@@ -44,7 +44,7 @@ impl ModerationCategory {
             | ModerationCategory::SelfHarmIntent
             | ModerationCategory::SelfHarmInstructions
             | ModerationCategory::Violence
-            | ModerationCategory::ViolenceGraphic => Report::Spam,
+            | ModerationCategory::ViolenceGraphic => Report::Other,
 
             ModerationCategory::Sexual => Report::Nudity,
 
@@ -117,7 +117,7 @@ mod tests {
     #[test]
     fn test_nip56_report_type() {
         let harassment = ModerationCategory::Harassment;
-        assert_eq!(harassment.nip56_report_type(), Report::Spam);
+        assert_eq!(harassment.nip56_report_type(), Report::Other);
     }
 
     #[test]
