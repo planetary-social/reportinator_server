@@ -74,7 +74,7 @@ impl ServiceManager {
         self.tracker.reopen();
         self.tracker.spawn_blocking(move || {
             match tokio::runtime::Runtime::new().context("Failed to create a new Runtime") {
-                Ok(rt) => rt.block_on(async move { actor_handle.await }),
+                Ok(rt) => rt.block_on(actor_handle),
                 Err(e) => {
                     error!("Failed to create a new Runtime: {}", e);
                     Ok(())
@@ -221,5 +221,5 @@ fn simplify_type_name(input: &str) -> String {
         result.replace_range(range, "");
     }
 
-    result.replace(":", "")
+    result.replace(':', "")
 }

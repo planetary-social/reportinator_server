@@ -37,15 +37,13 @@ impl PubsubPort for GooglePublisher {
     async fn publish_event(&mut self, report_request: &ReportRequest) -> Result<()> {
         let pubsub_message = PubsubMessage {
             data: serde_json::to_vec(report_request)
-                .context("Failed to serialize event to JSON")?
-                .into(),
+                .context("Failed to serialize event to JSON")?,
             ..Default::default()
         };
 
         let request = PublishRequest {
             topic: self.google_full_topic.clone(),
             messages: vec![pubsub_message],
-            ..Default::default()
         };
 
         self.pubsub_client

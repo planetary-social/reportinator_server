@@ -11,8 +11,17 @@ pub struct ReportRequestRumorContent {
     reported_event: Event,
     reporter_text: Option<String>,
 }
+
 impl ReportRequestRumorContent {
-    pub fn to_report_request(self, pubkey: PublicKey) -> ReportRequest {
+    pub fn parse(rumor_content: &str) -> Result<Self> {
+        let report_request_rumor_content =
+            serde_json::from_str::<ReportRequestRumorContent>(rumor_content)?;
+        Ok(report_request_rumor_content)
+    }
+}
+
+impl ReportRequestRumorContent {
+    pub fn into_report_request(self, pubkey: PublicKey) -> ReportRequest {
         ReportRequest::new(self.reported_event, pubkey, self.reporter_text)
     }
 }
@@ -64,11 +73,7 @@ impl ReportRequest {
             return Ok(None);
         };
 
-        let moderated_report = ModeratedReport::create(
-            self.reported_event.pubkey,
-            Some(self.reported_event.id),
-            moderation_category,
-        )?;
+        let moderated_report = ModeratedReport::create(self.clone(), moderation_category)?;
         Ok(Some(moderated_report))
     }
 }
@@ -101,7 +106,7 @@ mod tests {
         let reporter_text = Some("This is hateful. Report it!".to_string());
         let report_request = ReportRequest::new(
             reported_event.clone(),
-            reporter_pubkey.clone(),
+            reporter_pubkey,
             reporter_text.clone(),
         );
 

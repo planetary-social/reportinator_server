@@ -22,14 +22,13 @@ impl GiftWrappedReportRequest {
         let unwrapped_gift = extract_rumor(keys, &self.0).context("Couldn't extract rumor")?;
 
         let report_request_rumor_content =
-            serde_json::from_str::<ReportRequestRumorContent>(&unwrapped_gift.rumor.content)
-                .context(format!(
-                    "Failed to parse report request rumor content: {}",
-                    unwrapped_gift.rumor.content
-                ))?;
+            ReportRequestRumorContent::parse(&unwrapped_gift.rumor.content).context(format!(
+                "Failed to parse report request rumor content: {}",
+                unwrapped_gift.rumor.content
+            ))?;
 
         let report_request =
-            report_request_rumor_content.to_report_request(unwrapped_gift.rumor.pubkey);
+            report_request_rumor_content.into_report_request(unwrapped_gift.rumor.pubkey);
 
         if !report_request.valid() {
             bail!("{} is not a valid gift wrapped report request", self.0.id());

@@ -115,10 +115,7 @@ impl NostrPort for NostrService {
 async fn all_disconnected(client: &Client) -> bool {
     let relays = client.pool().relays().await;
 
-    let futures: Vec<_> = relays
-        .iter()
-        .map(|(_, relay)| relay.is_connected())
-        .collect();
+    let futures: Vec<_> = relays.values().map(|relay| relay.is_connected()).collect();
 
     let results = join_all(futures).await;
 

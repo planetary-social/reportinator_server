@@ -1,5 +1,6 @@
 use anyhow::anyhow;
 use nostr_sdk::Report;
+use std::fmt::{self, Display, Formatter};
 use std::str::FromStr;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -87,6 +88,28 @@ impl FromStr for ModerationCategory {
             "violence/graphic" => Ok(ModerationCategory::ViolenceGraphic),
             _ => Err(anyhow!("Invalid moderation category {}", input)),
         }
+    }
+}
+
+impl Display for ModerationCategory {
+    fn fmt(&self, f: &mut Formatter) -> fmt::Result {
+        write!(
+            f,
+            "{}",
+            match self {
+                ModerationCategory::Hate => "hate",
+                ModerationCategory::HateThreatening => "hate/threatening",
+                ModerationCategory::Harassment => "harassment",
+                ModerationCategory::HarassmentThreatening => "harassment/threatening",
+                ModerationCategory::SelfHarm => "self-harm",
+                ModerationCategory::SelfHarmIntent => "self-harm/intent",
+                ModerationCategory::SelfHarmInstructions => "self-harm/instructions",
+                ModerationCategory::Sexual => "sexual",
+                ModerationCategory::SexualMinors => "sexual/minors",
+                ModerationCategory::Violence => "violence",
+                ModerationCategory::ViolenceGraphic => "violence/graphic",
+            }
+        )
     }
 }
 

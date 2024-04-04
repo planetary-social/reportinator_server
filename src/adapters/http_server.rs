@@ -7,7 +7,6 @@ use axum::Router;
 use handlebars::Handlebars;
 use ractor::ActorRef;
 use router::create_router;
-use std::future::Future;
 use std::net::SocketAddr;
 use std::sync::Arc;
 use std::time::Duration;
@@ -61,9 +60,7 @@ async fn await_shutdown(
     }
 }
 
-fn shutdown_hook(cancellation_token: CancellationToken) -> impl Future<Output = ()> {
-    async move {
-        cancellation_token.cancelled().await;
-        info!("Exiting the process");
-    }
+async fn shutdown_hook(cancellation_token: CancellationToken) {
+    cancellation_token.cancelled().await;
+    info!("Exiting the process");
 }
