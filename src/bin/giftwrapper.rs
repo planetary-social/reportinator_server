@@ -1,6 +1,6 @@
 use anyhow::Result;
 use nostr_sdk::prelude::*;
-use reportinator_server::domain_objects::ReportRequest;
+use reportinator_server::{AsGiftWrap, ReportRequest};
 use std::env;
 use std::io::{self, BufRead};
 use std::str::FromStr;

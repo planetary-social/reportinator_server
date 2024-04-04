@@ -1,4 +1,3 @@
-pub mod actors;
-pub mod adapters;
-pub mod domain_objects;
-pub mod service_manager;
+mod domain_objects;
+pub use crate::domain_objects::as_gift_wrap::AsGiftWrap;
+pub use crate::domain_objects::report_request::ReportRequest;

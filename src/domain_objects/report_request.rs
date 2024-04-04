@@ -1,10 +1,21 @@
 use super::{ModeratedReport, ModerationCategory};
-use crate::domain_objects::GiftWrappedReportRequest;
 use anyhow::Result;
 use nostr_sdk::prelude::*;
 use serde::{Deserialize, Serialize};
 use std::fmt::Debug;
 use std::fmt::{self, Display, Formatter};
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ReportRequestRumorContent {
+    reported_event: Event,
+    reporter_text: Option<String>,
+}
+impl ReportRequestRumorContent {
+    pub fn to_report_request(self, pubkey: PublicKey) -> ReportRequest {
+        ReportRequest::new(self.reported_event, pubkey, self.reporter_text)
+    }
+}
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -41,10 +52,6 @@ impl ReportRequest {
         self.reporter_text.as_ref()
     }
 
-    pub fn to_json(&self) -> String {
-        serde_json::to_string(self).expect("Failed to serialize ReportRequest to JSON")
-    }
-
     pub fn valid(&self) -> bool {
         self.reported_event.verify().is_ok()
     }
@@ -63,42 +70,6 @@ impl ReportRequest {
             moderation_category,
         )?;
         Ok(Some(moderated_report))
-    }
-
-    // NOTE: This roughly creates a message as described by nip 17 but it's still
-    // not ready, just for testing purposes. There are more details to consider to
-    // properly implement the nip like created_at treatment. The nip itself is not
-    // finished at this time so hopefully in the future this can be done through the
-    // nostr crate.
-    #[allow(unused)]
-    pub async fn as_gift_wrap(
-        &self,
-        reporter_keys: &Keys,
-        receiver_pubkey: &PublicKey,
-    ) -> Result<GiftWrappedReportRequest> {
-        if self.reporter_pubkey() != &reporter_keys.public_key() {
-            return Err(anyhow::anyhow!(
-                "Reporter public key doesn't match the provided keys"
-            ));
-        }
-
-        // Compose rumor
-        let kind_14_rumor = EventBuilder::sealed_direct(receiver_pubkey.clone(), self.to_json())
-            .to_unsigned_event(reporter_keys.public_key());
-
-        // Compose seal
-        let content: String = NostrSigner::Keys(reporter_keys.clone())
-            .nip44_encrypt(receiver_pubkey.clone(), kind_14_rumor.as_json())
-            .await?;
-        let kind_13_seal = EventBuilder::new(Kind::Seal, content, []).to_event(&reporter_keys)?;
-
-        // Compose gift wrap
-        let expiration = None; // TODO
-        let kind_1059_gift_wrap: Event =
-            EventBuilder::gift_wrap_from_seal(&receiver_pubkey, &kind_13_seal, expiration)?;
-
-        let gift_wrap = GiftWrappedReportRequest::try_from(kind_1059_gift_wrap)?;
-        Ok(gift_wrap)
     }
 }
 

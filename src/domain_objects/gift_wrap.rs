@@ -1,3 +1,4 @@
+use super::report_request::ReportRequestRumorContent;
 use crate::domain_objects::ReportRequest;
 use anyhow::{bail, Context, Result};
 use nostr_sdk::prelude::*;
@@ -20,8 +21,15 @@ impl GiftWrappedReportRequest {
     pub fn extract_report_request(&self, keys: &Keys) -> Result<ReportRequest> {
         let unwrapped_gift = extract_rumor(keys, &self.0).context("Couldn't extract rumor")?;
 
-        let report_request = serde_json::from_str::<ReportRequest>(&unwrapped_gift.rumor.content)
-            .context("Failed to parse report request")?;
+        let report_request_rumor_content =
+            serde_json::from_str::<ReportRequestRumorContent>(&unwrapped_gift.rumor.content)
+                .context(format!(
+                    "Failed to parse report request rumor content: {}",
+                    unwrapped_gift.rumor.content
+                ))?;
+
+        let report_request =
+            report_request_rumor_content.to_report_request(unwrapped_gift.rumor.pubkey);
 
         if !report_request.valid() {
             bail!("{} is not a valid gift wrapped report request", self.0.id());

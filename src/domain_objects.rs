@@ -4,6 +4,8 @@ pub use gift_wrap::GiftWrappedReportRequest;
 pub mod report_request;
 pub use report_request::ReportRequest;
 
+pub mod as_gift_wrap;
+
 pub mod moderation_category;
 pub use moderation_category::ModerationCategory;
 

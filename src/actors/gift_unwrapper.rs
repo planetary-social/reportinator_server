@@ -72,6 +72,7 @@ impl Actor for GiftUnwrapper {
 mod tests {
     use super::*;
     use crate::actors::TestActor;
+    use crate::domain_objects::as_gift_wrap::AsGiftWrap;
     use ractor::{cast, Actor};
     use serde_json::json;
     use std::sync::Arc;
