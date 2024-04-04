@@ -1,4 +1,5 @@
 # Reportinator Server
+[![Coverage Status](https://coveralls.io/repos/github/planetary-social/reportinator_server/badge.svg?branch=main)](https://coveralls.io/github/planetary-social/reportinator_server?branch=main)
 
 This server moderates [Nostr](https://nostr.org) notes by analyzing direct messages to the [Reportinator bot account](https://njump.me/reportinator@nos.social). It uses the [NIP-17 standard](https://github.com/nostr-protocol/nips/pull/686) to process "gift-wrapped" messages with a JSON payload detailing the event. Flagged messages lead to the creation of [kind 1984 reports](https://github.com/nostr-protocol/nips/blob/master/56.md), available via `wss://relay.nos.social`, for client-side moderation.
 
