@@ -8,11 +8,11 @@ use tokio_util::sync::CancellationToken;
 use tracing::{debug, error, info};
 
 #[derive(Clone)]
-pub struct NostrSubscriber {
+pub struct NostrService {
     filters: Vec<Filter>,
     client: Client,
 }
-impl NostrSubscriber {
+impl NostrService {
     pub async fn create(relays: Vec<String>, filters: Vec<Filter>) -> Result<Self> {
         let opts = Options::new()
             .skip_disconnected_relays(true)
@@ -31,7 +31,7 @@ impl NostrSubscriber {
 }
 
 #[async_trait]
-impl NostrPort for NostrSubscriber {
+impl NostrPort for NostrService {
     async fn connect(&self) -> Result<()> {
         self.client.connect().await;
         Ok(())

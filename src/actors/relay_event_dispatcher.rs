@@ -232,16 +232,16 @@ mod tests {
     use tokio::sync::mpsc;
     use tokio::sync::Mutex;
 
-    // TestNostrSubscriber is a fake implementation of the NostrSubscriber to
+    // TestNostrService is a fake implementation of the NostrService to
     // fake interactions with the Nostr network.
     #[derive(Clone)]
-    struct TestNostrSubscriber {
+    struct TestNostrService {
         events_to_dispatch: Vec<Event>,
         event_sender: mpsc::Sender<Option<Event>>,
         event_receiver: Arc<Mutex<mpsc::Receiver<Option<Event>>>>,
     }
 
-    impl TestNostrSubscriber {
+    impl TestNostrService {
         pub fn new(events_to_dispatch: Vec<Event>) -> Self {
             let (event_sender, event_receiver) = mpsc::channel(10);
 
@@ -262,7 +262,7 @@ mod tests {
     }
 
     #[async_trait]
-    impl NostrPort for TestNostrSubscriber {
+    impl NostrPort for TestNostrService {
         async fn connect(&self) -> Result<()> {
             Ok(())
         }
@@ -306,7 +306,7 @@ mod tests {
 
         // We pop the events so the order is reversed
         let mut test_nostr_subscriber =
-            TestNostrSubscriber::new(vec![second_event.clone(), first_event.clone()]);
+            TestNostrService::new(vec![second_event.clone(), first_event.clone()]);
 
         let (dispatcher_ref, dispatcher_handle) = Actor::spawn(
             None,

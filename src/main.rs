@@ -4,7 +4,7 @@ mod domain_objects;
 mod service_manager;
 
 use crate::actors::Supervisor;
-use crate::adapters::{GooglePublisher, HttpServer, NostrSubscriber};
+use crate::adapters::{GooglePublisher, HttpServer, NostrService};
 use crate::service_manager::ServiceManager;
 use actors::{NostrPort, PubsubPort};
 use anyhow::{Context, Result};
@@ -40,7 +40,7 @@ async fn main() -> Result<()> {
 
     let relays = get_relays()?;
 
-    let nostr_subscriber = NostrSubscriber::create(relays, gift_wrap_filter).await?;
+    let nostr_subscriber = NostrService::create(relays, gift_wrap_filter).await?;
     let google_publisher = GooglePublisher::create().await?;
 
     start_server(nostr_subscriber, google_publisher, reportinator_keys).await
@@ -64,7 +64,7 @@ async fn main() -> Result<()> {
 ///   ┌───────────┼───────────┐                                      │
 ///   │           ▼           │                           ┌──────────┼──────────┐
 ///   │ ┌───────────────────┐ │                           │          │          │
-///   │ │  NostrSubscriber  │ │  ┌────────────────────┐   │ ┌─────────────────┐ │
+///   │ │   NostrService    │ │  ┌────────────────────┐   │ ┌─────────────────┐ │
 ///   │ │                   │ │─▶│   GiftUnwrapper    │──▶│ │ GooglePublisher │ │
 ///   │ └───────────────────┘ │  └────────────────────┘   │ └─────────────────┘ │
 ///   │ RelayEventDispatcher  │                           │    EventEnqueuer    │
