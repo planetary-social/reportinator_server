@@ -67,13 +67,13 @@ impl ReportRequest {
 
     pub fn report(
         &self,
-        maybe_moderation_category: Option<ModerationCategory>,
+        maybe_moderation_category: Option<&ModerationCategory>,
     ) -> Result<Option<ModeratedReport>> {
         let Some(moderation_category) = maybe_moderation_category else {
             return Ok(None);
         };
 
-        let moderated_report = ModeratedReport::create(self.clone(), moderation_category)?;
+        let moderated_report = ModeratedReport::create(self, moderation_category)?;
         Ok(Some(moderated_report))
     }
 }
@@ -136,7 +136,7 @@ mod tests {
             setup_test_environment();
 
         let category = ModerationCategory::from_str("hate").unwrap();
-        let maybe_report_event = report_request.report(Some(category)).unwrap();
+        let maybe_report_event = report_request.report(Some(&category)).unwrap();
         let report_event = maybe_report_event.unwrap().event();
         let report_event_value = serde_json::to_value(report_event).unwrap();
 

@@ -5,7 +5,7 @@ use crate::domain_objects::{ModerationCategory, ReportRequest};
 use anyhow::{anyhow, Context, Result};
 use axum::{extract::State, routing::post, Extension, Router};
 use nostr_sdk::prelude::*;
-use ractor::cast;
+use ractor::{call_t, cast, ActorRef};
 use reqwest::Client as ReqwestClient;
 use serde_json::{json, Value};
 use slack_morphism::prelude::*;
@@ -60,72 +60,161 @@ async fn slack_interaction_handler(
     let (response_url, slack_username, report_request, maybe_category) =
         parse_slack_action(block_actions_event)?;
 
-    let message = if let Some(moderated_report) = report_request.report(maybe_category.clone())? {
-        let message = format!(
-            r#"
-                🚩 *New Moderation Report* 🚩
+    let message = slack_message(
+        message_dispatcher,
+        report_request,
+        maybe_category,
+        slack_username,
+    )
+    .await?;
 
-                *Report Confirmed By:* {}
-                *Categorized As:* `{}`
-                *Report Id:* `{}`
+    send_slack_response(response_url.as_ref(), &message).await?;
 
-                *Requested By*: `{}`
-                *Reason:*
-                ```
-                {}
-                ```
+    Ok(())
+}
 
-                *Reported Event Id:* `{}`
-                *Reported Event content:*
-                ```
-                {}
-                ```
-            "#,
-            slack_username,
-            maybe_category.unwrap(),
-            moderated_report.id(),
-            report_request.reporter_pubkey(),
-            report_request.reporter_text().unwrap_or(&"".to_string()),
-            report_request.reported_event().id,
-            report_request.reported_event().content
-        );
+async fn slack_message(
+    message_dispatcher: ActorRef<SupervisorMessage>,
+    report_request: ReportRequest,
+    maybe_category: Option<ModerationCategory>,
+    slack_username: String,
+) -> Result<String, AppError> {
+    let reporter_nip05_markdown =
+        try_njump(message_dispatcher.clone(), report_request.reporter_pubkey()).await?;
 
+    let reported_nip05_markdown = try_njump(
+        message_dispatcher.clone(),
+        &report_request.reported_event().author(),
+    )
+    .await?;
+
+    if let Some(moderated_report) = report_request.report(maybe_category.as_ref())? {
+        let report_id = moderated_report.id();
         cast!(
             message_dispatcher,
             SupervisorMessage::Publish(moderated_report)
         )?;
 
-        message
-    } else {
-        format!(
-            r#"
-                ⏭️ *Moderation Report Skipped* ⏭️
-
-                *Report Skipped By:* {}
-
-                *Requested By*: `{}`
-                *Reason:*
-                ```
-                {}
-                ```
-
-                *Reported Event Id:* `{}`
-                *Reported Event content:*
-                ```
-                {}
-                ```
-            "#,
+        let message = slack_processed_message(
             slack_username,
-            report_request.reporter_pubkey(),
-            report_request.reporter_text().unwrap_or(&"".to_string()),
-            report_request.reported_event().id,
-            report_request.reported_event().content
-        )
-    };
+            maybe_category.unwrap(),
+            report_id,
+            reporter_nip05_markdown,
+            report_request,
+            reported_nip05_markdown,
+        );
+        return Ok(message);
+    }
 
-    send_slack_response(response_url.as_ref(), &message).await?;
+    Ok(slack_skipped_message(
+        slack_username,
+        reporter_nip05_markdown,
+        report_request,
+        reported_nip05_markdown,
+    ))
+}
 
-    Ok(())
+fn slack_processed_message(
+    slack_username: String,
+    category: ModerationCategory,
+    report_id: EventId,
+    reporter_nip05_markdown: String,
+    report_request: ReportRequest,
+    reported_nip05_markdown: String,
+) -> String {
+    let message = format!(
+        r#"
+        🚩 *New Moderation Report* 🚩
+
+        *Report Confirmed By:* {}
+        *Categorized As:* `{}`
+        *Report Id:* `{}`
+
+        *Requested By*: {}
+        *Reason:*
+        ```
+        {}
+        ```
+
+        *Reported Pubkey:* {}
+        *Reported Event Id:* `{}`
+        *Reported Event content:*
+        ```
+        {}
+        ```
+        "#,
+        slack_username,
+        category,
+        report_id,
+        reporter_nip05_markdown,
+        report_request.reporter_text().unwrap_or(&"".to_string()),
+        reported_nip05_markdown,
+        report_request.reported_event().id,
+        report_request.reported_event().content
+    );
+
+    let trimmed_string = message
+        .lines()
+        .map(|line| line.trim())
+        .collect::<Vec<&str>>()
+        .join("\n");
+
+    trimmed_string
+}
+
+fn slack_skipped_message(
+    slack_username: String,
+    reporter_nip05_markdown: String,
+    report_request: ReportRequest,
+    reported_nip05_markdown: String,
+) -> String {
+    let message = format!(
+        r#"
+        ⏭️ *Moderation Report Skipped* ⏭️
+
+        *Report Skipped By:* {}
+
+        *Requested By*: {}
+        *Reason:*
+        ```
+        {}
+        ```
+
+        *Reported Pubkey:* {}
+        *Reported Event Id:* `{}`
+        *Reported Event content:*
+        ```
+        {}
+            ```
+        "#,
+        slack_username,
+        reporter_nip05_markdown,
+        report_request.reporter_text().unwrap_or(&"".to_string()),
+        reported_nip05_markdown,
+        report_request.reported_event().id,
+        report_request.reported_event().content
+    );
+
+    let trimmed_string = message
+        .lines()
+        .map(|line| line.trim())
+        .collect::<Vec<&str>>()
+        .join("\n");
+
+    trimmed_string
+}
+
+async fn try_njump(
+    message_dispatcher: ActorRef<SupervisorMessage>,
+    pubkey: &PublicKey,
+) -> Result<String> {
+    let maybe_reporter_nip05 =
+        call_t!(message_dispatcher, SupervisorMessage::GetNip05, 50, *pubkey)?;
+
+    Ok(maybe_reporter_nip05
+        .as_ref()
+        .map(|nip05| format!("https://njump.me/{}", nip05))
+        .unwrap_or(format!("`{}`", pubkey)))
 }
 
 fn parse_slack_action(
@@ -194,12 +283,7 @@ fn find_block_id(event_value: &Value, block_id_text: &str) -> Result<String, App
 }
 
 async fn send_slack_response(response_url: &str, response_text: &str) -> Result<()> {
-    let trimmed_string = response_text
-        .lines()
-        .map(|line| line.trim())
-        .collect::<Vec<&str>>()
-        .join("\n");
-    debug!("Sending response to slack: {:?}", trimmed_string);
+    debug!("Sending response to slack: {:?}", response_text);
     let client = ReqwestClient::new();
 
     let res = client
@@ -208,7 +292,7 @@ async fn send_slack_response(response_url: &str, response_text: &str) -> Result<
         .body(
             json!({
                 "replace_original": "true",
-                "text": trimmed_string,
+                "text": response_text,
             })
             .to_string(),
         )

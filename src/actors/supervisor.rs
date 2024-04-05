@@ -5,7 +5,7 @@ use crate::actors::{
 };
 use anyhow::Result;
 use nostr_sdk::prelude::*;
-use ractor::{cast, Actor, ActorProcessingErr, ActorRef, SupervisionEvent};
+use ractor::{call_t, cast, Actor, ActorProcessingErr, ActorRef, SupervisionEvent};
 use tracing::error;
 
 pub struct Supervisor<T, U> {
@@ -50,7 +50,7 @@ where
         let (gift_unwrapper, _gift_unwrapper_handle) = Actor::spawn_linked(
             Some("gift_unwrapper".to_string()),
             GiftUnwrapper,
-            reportinator_keys.clone(),
+            reportinator_keys,
             myself.get_cell(),
         )
         .await?;
@@ -83,11 +83,26 @@ where
         &self,
         _myself: ActorRef<Self::Msg>,
         message: Self::Msg,
-        state: &mut Self::State,
+        event_dispatcher: &mut Self::State,
     ) -> Result<(), ActorProcessingErr> {
         match message {
-            SupervisorMessage::Publish(report) => {
-                cast!(state, RelayEventDispatcherMessage::Publish(report))?;
+            Self::Msg::Publish(report) => {
+                cast!(
+                    event_dispatcher,
+                    RelayEventDispatcherMessage::Publish(report)
+                )?;
+            }
+            Self::Msg::GetNip05(request, reply_port) => {
+                let result = call_t!(
+                    event_dispatcher,
+                    RelayEventDispatcherMessage::GetNip05,
+                    1000,
+                    request
+                )?;
+
+                if !reply_port.is_closed() {
+                    reply_port.send(result)?;
+                }
             }
         }
         Ok(())

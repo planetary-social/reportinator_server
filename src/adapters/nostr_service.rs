@@ -22,8 +22,8 @@ impl NostrService {
             .wait_for_subscription(true);
 
         let client = ClientBuilder::new().opts(opts).build();
-        for relay in relays.iter() {
-            client.add_relay(relay.clone()).await?;
+        for relay in relays.iter().cloned() {
+            client.add_relay(relay).await?;
         }
 
         Ok(Self { client, filters })
@@ -46,6 +46,27 @@ impl NostrPort for NostrService {
     async fn publish(&self, event: Event) -> Result<()> {
         self.client.send_event(event).await?;
         Ok(())
+    }
+
+    async fn get_nip05(&self, public_key: PublicKey) -> Option<String> {
+        let metadata = self.client.metadata(public_key).await.ok();
+
+        match metadata {
+            Some(Metadata {
+                nip05: Some(nip05_value),
+                ..
+            }) => {
+                info!(
+                    "Nip05 for public key: {:?} is: {:?}",
+                    public_key, nip05_value
+                );
+                Some(nip05_value)
+            }
+            _ => {
+                info!("No Nip05 found for public key: {:?}", public_key);
+                None
+            }
+        }
     }
 
     async fn subscribe(
@@ -85,7 +106,7 @@ impl NostrPort for NostrService {
             return Ok(());
         }
 
-        info!("Subscribing to {:?}", self.filters.clone());
+        info!("Subscribing to {:?}", &self.filters);
         // If we ever have different type of subscriptions, we should separate
         // creation from handling. We can have a single handler for all subs.
         // See: https://github.com/rust-nostr/nostr/issues/345#issuecomment-1985925161

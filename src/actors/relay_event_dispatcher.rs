@@ -56,6 +56,7 @@ pub trait NostrPort: Send + Sync + Clone + 'static {
     async fn connect(&self) -> Result<()>;
     async fn reconnect(&self) -> Result<()>;
     async fn publish(&self, event: Event) -> Result<()>;
+    async fn get_nip05(&self, public_key: PublicKey) -> Option<String>;
 
     async fn subscribe(
         &self,
@@ -161,6 +162,13 @@ impl<T: NostrPort> Actor for RelayEventDispatcher<T> {
                     moderated_report.event().id()
                 );
             }
+            RelayEventDispatcherMessage::GetNip05(public_key, reply_port) => {
+                let maybe_nip05 = state.nostr_client.get_nip05(public_key).await;
+
+                if !reply_port.is_closed() {
+                    reply_port.send(maybe_nip05)?;
+                }
+            }
         }
 
         Ok(())
@@ -239,6 +247,11 @@ mod tests {
         async fn publish(&self, _event: Event) -> Result<()> {
             Ok(())
         }
+
+        async fn get_nip05(&self, _public_key: PublicKey) -> Option<String> {
+            None
+        }
+
         async fn subscribe(
             &self,
             cancellation_token: CancellationToken,
