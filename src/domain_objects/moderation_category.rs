@@ -148,4 +148,10 @@ mod tests {
         let violence = ModerationCategory::Violence;
         assert_eq!(violence.nip69(), "VI");
     }
+
+    #[test]
+    fn test_display() {
+        let sexual = ModerationCategory::Sexual;
+        assert_eq!(format!("{}", sexual), "sexual");
+    }
 }

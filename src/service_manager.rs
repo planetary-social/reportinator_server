@@ -223,3 +223,48 @@ fn simplify_type_name(input: &str) -> String {
 
     result.replace(':', "")
 }
+
+#[cfg(test)]
+mod service_manager_tests {
+    use super::*;
+    use crate::actors::utilities::test_actor::{TestActor, TestActorMessagesReceived};
+    use std::sync::Arc;
+    use tokio::{
+        sync::Mutex,
+        time::{sleep, Duration},
+    };
+
+    #[tokio::test]
+    async fn service_manager_spawns_and_manages_test_actor() {
+        let mut service_manager = ServiceManager::new();
+
+        let messages_received: TestActorMessagesReceived<String> = Arc::new(Mutex::new(Vec::new()));
+
+        let actor_args = Some(messages_received.clone());
+        let test_actor_ref = service_manager
+            .spawn_actor(TestActor::<String>::default(), actor_args)
+            .await
+            .expect("Failed to spawn TestActor");
+
+        let test_message = "Hello from ServiceManager!".to_string();
+        test_actor_ref
+            .send_message(test_message.clone())
+            .expect("Failed to send message");
+
+        sleep(Duration::from_millis(50)).await;
+
+        let locked_messages = messages_received.lock().await;
+
+        assert_eq!(
+            locked_messages.len(),
+            1,
+            "TestActor should have received exactly one message"
+        );
+        assert_eq!(
+            locked_messages[0], test_message,
+            "The received message should match the sent message"
+        );
+
+        service_manager.stop().await;
+    }
+}
