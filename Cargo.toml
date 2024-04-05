@@ -17,7 +17,7 @@ http-body-util = "0.1.1"
 hyper = "1.2.0"
 libc = "0.2.153"
 log = "0.4.21"
-nostr-sdk = { git = "https://github.com/dcadenas/nostr.git", branch = "add-other-report" }
+nostr-sdk = { git = "https://github.com/rust-nostr/nostr", rev = "99b7d96" }
 ractor = "0.9.7"
 regex = "1.10.4"
 reqwest = "0.12.2"

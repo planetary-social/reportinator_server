@@ -1582,7 +1582,7 @@ dependencies = [
 [[package]]
 name = "nostr"
 version = "0.29.0"
-source = "git+https://github.com/dcadenas/nostr.git?branch=add-other-report#1dc0c5792e27c3eef5418521c7cf9143fa83bd74"
+source = "git+https://github.com/rust-nostr/nostr?rev=99b7d96#99b7d965241a7d40151f757598443e0c6751bde8"
 dependencies = [
  "aes",
  "base64 0.21.7",
@@ -1611,7 +1611,7 @@ dependencies = [
 [[package]]
 name = "nostr-database"
 version = "0.29.0"
-source = "git+https://github.com/dcadenas/nostr.git?branch=add-other-report#1dc0c5792e27c3eef5418521c7cf9143fa83bd74"
+source = "git+https://github.com/rust-nostr/nostr?rev=99b7d96#99b7d965241a7d40151f757598443e0c6751bde8"
 dependencies = [
  "async-trait",
  "lru",
@@ -1624,7 +1624,7 @@ dependencies = [
 [[package]]
 name = "nostr-relay-pool"
 version = "0.29.0"
-source = "git+https://github.com/dcadenas/nostr.git?branch=add-other-report#1dc0c5792e27c3eef5418521c7cf9143fa83bd74"
+source = "git+https://github.com/rust-nostr/nostr?rev=99b7d96#99b7d965241a7d40151f757598443e0c6751bde8"
 dependencies = [
  "async-utility",
  "async-wsocket",
@@ -1639,7 +1639,7 @@ dependencies = [
 [[package]]
 name = "nostr-sdk"
 version = "0.29.0"
-source = "git+https://github.com/dcadenas/nostr.git?branch=add-other-report#1dc0c5792e27c3eef5418521c7cf9143fa83bd74"
+source = "git+https://github.com/rust-nostr/nostr?rev=99b7d96#99b7d965241a7d40151f757598443e0c6751bde8"
 dependencies = [
  "async-utility",
  "lnurl-pay",
@@ -1657,7 +1657,7 @@ dependencies = [
 [[package]]
 name = "nostr-signer"
 version = "0.29.0"
-source = "git+https://github.com/dcadenas/nostr.git?branch=add-other-report#1dc0c5792e27c3eef5418521c7cf9143fa83bd74"
+source = "git+https://github.com/rust-nostr/nostr?rev=99b7d96#99b7d965241a7d40151f757598443e0c6751bde8"
 dependencies = [
  "async-utility",
  "nostr",
@@ -1670,7 +1670,7 @@ dependencies = [
 [[package]]
 name = "nostr-zapper"
 version = "0.29.0"
-source = "git+https://github.com/dcadenas/nostr.git?branch=add-other-report#1dc0c5792e27c3eef5418521c7cf9143fa83bd74"
+source = "git+https://github.com/rust-nostr/nostr?rev=99b7d96#99b7d965241a7d40151f757598443e0c6751bde8"
 dependencies = [
  "async-trait",
  "nostr",
@@ -1735,7 +1735,7 @@ dependencies = [
 [[package]]
 name = "nwc"
 version = "0.29.0"
-source = "git+https://github.com/dcadenas/nostr.git?branch=add-other-report#1dc0c5792e27c3eef5418521c7cf9143fa83bd74"
+source = "git+https://github.com/rust-nostr/nostr?rev=99b7d96#99b7d965241a7d40151f757598443e0c6751bde8"
 dependencies = [
  "async-utility",
  "nostr",
