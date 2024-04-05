@@ -63,7 +63,7 @@ async fn slack_interaction_handler(
     let message = if let Some(moderated_report) = report_request.report(maybe_category.clone())? {
         let message = format!(
             r#"
-                🚩 *New Moderation Report* :rotating_light: 🚩
+                🚩 *New Moderation Report* 🚩
 
                 *Report Confirmed By:* {}
                 *Categorized As:* `{}`
