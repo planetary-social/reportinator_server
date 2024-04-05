@@ -86,7 +86,9 @@ impl NostrPort for NostrService {
         }
 
         info!("Subscribing to {:?}", self.filters.clone());
-        //let opts = SubscribeAutoCloseOptions::default().filter(FilterOptions::WaitForEventsAfterEOSE(10));
+        // If we ever have different type of subscriptions, we should separate
+        // creation from handling. We can have a single handler for all subs.
+        // See: https://github.com/rust-nostr/nostr/issues/345#issuecomment-1985925161
         self.client.subscribe(self.filters.clone(), None).await;
         self.client
             .handle_notifications(|notification| async {

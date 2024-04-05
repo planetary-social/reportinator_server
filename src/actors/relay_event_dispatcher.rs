@@ -28,7 +28,7 @@ impl<T> RelayEventDispatcher<T>
 where
     T: NostrPort,
 {
-    async fn handle_connection(
+    async fn handle_subscriptions(
         &self,
         myself: ActorRef<RelayEventDispatcherMessage>,
         state: &mut State<T>,
@@ -120,7 +120,7 @@ impl<T: NostrPort> Actor for RelayEventDispatcher<T> {
                     return Ok(());
                 }
 
-                if let Err(e) = self.handle_connection(myself, state, "Connecting").await {
+                if let Err(e) = self.handle_subscriptions(myself, state, "Connecting").await {
                     error!("Failed to connect: {}", e);
                 }
             }
@@ -130,7 +130,10 @@ impl<T: NostrPort> Actor for RelayEventDispatcher<T> {
                     return Ok(());
                 }
 
-                if let Err(e) = self.handle_connection(myself, state, "Reconnecting").await {
+                if let Err(e) = self
+                    .handle_subscriptions(myself, state, "Reconnecting")
+                    .await
+                {
                     error!("Failed to reconnect: {}", e);
                 }
             }
@@ -168,7 +171,7 @@ impl<T: NostrPort> Actor for RelayEventDispatcher<T> {
 // so we spawn a task specifically for this. See
 // https://github.com/slawlor/ractor/issues/133#issuecomment-1666947314
 async fn spawn_subscription_task<T>(
-    actor_ref: ActorRef<RelayEventDispatcherMessage>,
+    dispatcher_ref: ActorRef<RelayEventDispatcherMessage>,
     state: &State<T>,
 ) -> Result<ServiceManager, ActorProcessingErr>
 where
@@ -178,48 +181,12 @@ where
 
     let nostr_client_clone = state.nostr_client.clone();
     subscription_task_manager.spawn_blocking_service(|cancellation_token| async move {
-        let relay_subscription_worker =
-            RelaySubscriptionWorker::new(cancellation_token, actor_ref, nostr_client_clone);
-
-        if let Err(e) = relay_subscription_worker.run().await {
-            error!("Failed to run relay subscription worker: {}", e);
-        }
-        Ok(())
+        nostr_client_clone
+            .subscribe(cancellation_token, dispatcher_ref)
+            .await
     });
 
     Ok(subscription_task_manager)
-}
-
-pub struct RelaySubscriptionWorker<T> {
-    cancellation_token: CancellationToken,
-    dispatcher_actor: ActorRef<RelayEventDispatcherMessage>,
-    nostr_client: T,
-}
-
-impl<T> RelaySubscriptionWorker<T>
-where
-    T: NostrPort,
-{
-    fn new(
-        cancellation_token: CancellationToken,
-        dispatcher_actor: ActorRef<RelayEventDispatcherMessage>,
-        nostr_client: T,
-    ) -> Self {
-        Self {
-            cancellation_token,
-            dispatcher_actor,
-            nostr_client,
-        }
-    }
-
-    async fn run(&self) -> Result<()> {
-        let cancellation_token = self.cancellation_token.clone();
-        let dispatcher_actor = self.dispatcher_actor.clone();
-
-        self.nostr_client
-            .subscribe(cancellation_token, dispatcher_actor)
-            .await
-    }
 }
 
 #[cfg(test)]
