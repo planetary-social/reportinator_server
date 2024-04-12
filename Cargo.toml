@@ -7,24 +7,24 @@ default-run = "reportinator_server"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-anyhow = "1.0.81"
+anyhow = "1.0.82"
 axum = "0.7.5"
 env_logger = "0.11.3"
 futures = "0.3.30"
-gcloud-sdk = { version = "0.24.4", features = ["google-pubsub-v1"] }
+gcloud-sdk = { version = "0.24.5", features = ["google-pubsub-v1"] }
 handlebars = "5.1.2"
 http-body-util = "0.1.1"
 hyper = "1.2.0"
 libc = "0.2.153"
 log = "0.4.21"
-nostr-sdk = { git = "https://github.com/rust-nostr/nostr", rev = "99b7d96" }
+nostr-sdk = "0.30.0"
 ractor = "0.9.7"
 regex = "1.10.4"
-reqwest = "0.12.2"
+reqwest = "0.12.3"
 serde = { version = "1.0.197", features = ["derive"] }
 serde_json = "1.0.115"
 slack-morphism = { version = "2.1.0", features = ["axum"] }
-tokio = { version = "1.36.0", features = ["full"] }
+tokio = { version = "1.37.0", features = ["full"] }
 tokio-util = { version = "0.7.10", features = ["rt"] }
 tower = "0.4.13"
 tower-http = { version = "0.5.2", features = ["timeout", "trace"] }
