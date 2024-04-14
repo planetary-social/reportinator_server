@@ -1,0 +1,9 @@
+global:
+  scrape_interval: 15s
+  evaluation_interval: 30s
+scrape_configs:
+  - job_name: 'reportinator-monitoring'
+    metrics_path: /metrics
+    honor_labels: true
+    static_configs:
+      - targets: ['host.docker.internal:3000']

@@ -4,6 +4,7 @@ use crate::actors::{
     EventEnqueuer, GiftUnwrapper, NostrPort, RelayEventDispatcher,
 };
 use anyhow::Result;
+use metrics::counter;
 use nostr_sdk::prelude::*;
 use ractor::{call_t, cast, Actor, ActorProcessingErr, ActorRef, SupervisionEvent};
 use tracing::error;
@@ -125,6 +126,7 @@ where
                 myself.stop(None)
             }
             SupervisionEvent::ActorPanicked(dead_actor, panic_msg) => {
+                counter!("actor_panicked").increment(1);
                 error!("Actor panicked: {:?}, panic: {}", dead_actor, panic_msg);
             }
             SupervisionEvent::ActorStarted(_actor) => {}

@@ -35,7 +35,7 @@ async fn main() -> Result<()> {
     //TODO: We should probably also filter through `since`
     let gift_wrap_filter = vec![Filter::new()
         .pubkey(reportinator_public_key)
-        .limit(10)
+        .limit(0)
         .kind(Kind::GiftWrap)];
 
     let relays = get_relays()?;

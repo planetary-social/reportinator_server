@@ -5,6 +5,8 @@ use anyhow::Result;
 use axum::{extract::State, http::HeaderMap, response::Html};
 use axum::{response::IntoResponse, routing::get, Router};
 use handlebars::Handlebars;
+use metrics::describe_counter;
+use metrics_exporter_prometheus::PrometheusBuilder;
 use ractor::ActorRef;
 use serde_json::json;
 use std::env;
@@ -17,6 +19,9 @@ use tracing::Level;
 
 pub fn create_router(message_dispatcher: ActorRef<SupervisorMessage>) -> Result<Router> {
     let web_app_state = create_web_app_state(message_dispatcher)?;
+
+    let metrics_handle = setup_metrics()?;
+
     let tracing_layer = TraceLayer::new_for_http()
         .make_span_with(DefaultMakeSpan::new().level(Level::INFO))
         .on_response(
@@ -32,7 +37,8 @@ pub fn create_router(message_dispatcher: ActorRef<SupervisorMessage>) -> Result<
         .merge(slack_interactions_route()?)
         .layer(tracing_layer)
         .layer(TimeoutLayer::new(Duration::from_secs(1)))
-        .with_state(web_app_state))
+        .with_state(web_app_state)
+        .route("/metrics", get(|| async move { metrics_handle.render() })))
 }
 
 fn create_web_app_state(message_dispatcher: ActorRef<SupervisorMessage>) -> Result<WebAppState> {
@@ -46,6 +52,27 @@ fn create_web_app_state(message_dispatcher: ActorRef<SupervisorMessage>) -> Resu
         hb: Arc::new(hb),
         event_dispatcher: message_dispatcher,
     })
+}
+
+fn setup_metrics() -> Result<metrics_exporter_prometheus::PrometheusHandle, anyhow::Error> {
+    describe_counter!("actor_panicked", "Number of actors that panicked");
+    describe_counter!("event_received", "Number of events received");
+    describe_counter!("event_received_error", "Number of errors receiving events");
+    describe_counter!("publish", "Number of events published");
+    describe_counter!("publish_error", "Number of errors publishing events");
+    describe_counter!("events_enqueued", "Number of events enqueued to cleanstr");
+    describe_counter!(
+        "events_enqueued_error",
+        "Number of errors enqueuing events to cleanstr"
+    );
+    describe_counter!("connect", "Number of new nostr client connections");
+    describe_counter!("connect_error", "Number of errors connecting to nostr");
+    describe_counter!("reconnect", "Number of reconnections to nostr");
+    describe_counter!("reconnect_error", "Number of errors reconnecting to nostr");
+
+    let prometheus_builder = PrometheusBuilder::new();
+    let prometheus_handle = prometheus_builder.install_recorder()?;
+    Ok(prometheus_handle)
 }
 
 async fn serve_root_page(

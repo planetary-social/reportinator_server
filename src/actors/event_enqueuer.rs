@@ -1,6 +1,7 @@
 use crate::actors::messages::EventEnqueuerMessage;
 use crate::domain_objects::ReportRequest;
 use anyhow::Result;
+use metrics::counter;
 use ractor::{Actor, ActorProcessingErr, ActorRef};
 use tracing::{error, info};
 
@@ -52,10 +53,12 @@ where
         match message {
             EventEnqueuerMessage::Enqueue(report_request) => {
                 if let Err(e) = state.pubsub_publisher.publish_event(&report_request).await {
+                    counter!("events_enqueued_error").increment(1);
                     error!("Failed to publish event: {}", e);
                     return Ok(());
                 }
 
+                counter!("events_enqueued").increment(1);
                 info!(
                     "Event {} enqueued for moderation",
                     report_request.reported_event().id()

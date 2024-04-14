@@ -22,6 +22,29 @@ services:
       - REPORTINATOR_SECRET=feef9c2dcd6a1175a97dfbde700fa54f58ce69d4f30963f70efcc7257636759f
       - GOOGLE_APPLICATION_CREDENTIALS=/app/gcloud/application_default_credentials.json
       - RUST_LOG=reportinator_server=info
+      - SLACK_SIGNING_SECRET=asdf
+
+  prometheus:
+    image: prom/prometheus
+    ports:
+      - "9090:9090"
+      - "9100:9100"
+    volumes:
+      - ./prometheus.yaml:/etc/prometheus/prometheus.yaml
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yaml'
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+
+  grafana:
+    image: grafana/grafana
+    ports:
+      - "3001:3000"
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=secret
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+
 
 # The commented out section below is an example of how to define a PostgreSQL
 # database that your application can use. `depends_on` tells Docker Compose to

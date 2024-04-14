@@ -2,6 +2,7 @@ use crate::actors::messages::RelayEventDispatcherMessage;
 use crate::domain_objects::GiftWrappedReportRequest;
 use crate::service_manager::ServiceManager;
 use anyhow::Result;
+use metrics::counter;
 use nostr_sdk::prelude::*;
 use ractor::{Actor, ActorProcessingErr, ActorRef, OutputPort};
 use tokio_util::sync::CancellationToken;
@@ -117,16 +118,22 @@ impl<T: NostrPort> Actor for RelayEventDispatcher<T> {
             // DOS
             RelayEventDispatcherMessage::Connect => {
                 if let Err(e) = state.nostr_client.connect().await {
+                    counter!("connect_error").increment(1);
                     error!("Failed to connect: {}", e);
                     return Ok(());
                 }
 
                 if let Err(e) = self.handle_subscriptions(myself, state, "Connecting").await {
+                    counter!("connect_error").increment(1);
                     error!("Failed to connect: {}", e);
+                    return Ok(());
                 }
+
+                counter!("connect").increment(1);
             }
             RelayEventDispatcherMessage::Reconnect => {
                 if let Err(e) = state.nostr_client.reconnect().await {
+                    counter!("reconnect_error").increment(1);
                     error!("Failed to reconnect: {}", e);
                     return Ok(());
                 }
@@ -135,8 +142,11 @@ impl<T: NostrPort> Actor for RelayEventDispatcher<T> {
                     .handle_subscriptions(myself, state, "Reconnecting")
                     .await
                 {
+                    counter!("reconnect_error").increment(1);
                     error!("Failed to reconnect: {}", e);
+                    return Ok(());
                 }
+                counter!("reconnect").increment(1);
             }
             RelayEventDispatcherMessage::SubscribeToEventReceived(subscriber) => {
                 info!("Subscribing: {:?} to {:?}", subscriber, myself.get_name());
@@ -146,6 +156,7 @@ impl<T: NostrPort> Actor for RelayEventDispatcher<T> {
                 let gift_wrapped_report_request = match GiftWrappedReportRequest::try_from(event) {
                     Ok(gift) => gift,
                     Err(e) => {
+                        counter!("event_received_error").increment(1);
                         error!("Failed to get gift wrap event: {}", e);
                         return Ok(());
                     }
@@ -154,9 +165,16 @@ impl<T: NostrPort> Actor for RelayEventDispatcher<T> {
                 state
                     .event_received_output_port
                     .send(gift_wrapped_report_request);
+                counter!("event_received").increment(1);
             }
             RelayEventDispatcherMessage::Publish(moderated_report) => {
-                state.nostr_client.publish(moderated_report.event()).await?;
+                if let Err(e) = state.nostr_client.publish(moderated_report.event()).await {
+                    counter!("publish_error").increment(1);
+                    error!("Failed to publish moderated report: {}", e);
+                    return Ok(());
+                }
+
+                counter!("publish").increment(1);
                 info!(
                     "Report {} published successfully",
                     moderated_report.event().id()
