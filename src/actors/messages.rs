@@ -1,16 +1,13 @@
-use crate::actors::utilities::OutputPortSubscriber;
 use crate::domain_objects::*;
 use nostr_sdk::prelude::*;
-use ractor::RpcReplyPort;
+use ractor::{port::OutputPortSubscriber, RpcReplyPort};
 use std::fmt::Debug;
 
-#[derive(Debug)]
 pub enum SupervisorMessage {
     Publish(ModeratedReport),
     GetNip05(PublicKey, RpcReplyPort<Option<String>>),
 }
 
-#[derive(Debug)]
 pub enum RelayEventDispatcherMessage {
     Connect,
     Reconnect,
@@ -20,7 +17,6 @@ pub enum RelayEventDispatcherMessage {
     GetNip05(PublicKey, RpcReplyPort<Option<String>>),
 }
 
-#[derive(Debug)]
 pub enum GiftUnwrapperMessage {
     UnwrapEvent(GiftWrappedReportRequest),
     SubscribeToEventUnwrapped(OutputPortSubscriber<ReportRequest>),

@@ -2149,8 +2149,7 @@ dependencies = [
 [[package]]
 name = "ractor"
 version = "0.9.7"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7dd876f0d609ba2ddc8a36136e9b81299312bd9fc9b71131381d16c9ce8e495a"
+source = "git+https://github.com/slawlor/ractor?rev=26a01d69e1d83a6d6f1cfcda668acb6deee74b13#26a01d69e1d83a6d6f1cfcda668acb6deee74b13"
 dependencies = [
  "async-trait",
  "dashmap",

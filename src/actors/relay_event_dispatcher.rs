@@ -149,7 +149,7 @@ impl<T: NostrPort> Actor for RelayEventDispatcher<T> {
                 counter!("reconnect").increment(1);
             }
             RelayEventDispatcherMessage::SubscribeToEventReceived(subscriber) => {
-                info!("Subscribing: {:?} to {:?}", subscriber, myself.get_name());
+                info!("Subscribing to {:?}", myself.get_name());
                 subscriber.subscribe_to_port(&state.event_received_output_port);
             }
             RelayEventDispatcherMessage::EventReceived(event) => {
