@@ -23,7 +23,7 @@ nostr-sdk = "0.30.0"
 ractor = {git = "https://github.com/slawlor/ractor", rev = "26a01d69e1d83a6d6f1cfcda668acb6deee74b13" }
 regex = "1.10.4"
 reqwest = "0.12.3"
-serde = { version = "1.0.197", features = ["derive"] }
+serde = { version = "1.0.198", features = ["derive"] }
 serde_json = "1.0.115"
 slack-morphism = { version = "2.1.0", features = ["axum"] }
 tokio = { version = "1.37.0", features = ["full"] }
