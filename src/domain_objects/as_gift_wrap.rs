@@ -10,6 +10,13 @@ pub trait AsGiftWrap {
         reporter_keys: &Keys,
         receiver_pubkey: &PublicKey,
     ) -> Result<GiftWrappedReportRequest>;
+
+    fn random_time_in_last_two_days(&self) -> Timestamp {
+        let now = Timestamp::now();
+        let two_days = 2 * 24 * 60 * 60;
+        let random_time = now - (rand::random::<u64>() % two_days);
+        random_time
+    }
 }
 
 #[async_trait]
@@ -40,7 +47,9 @@ impl AsGiftWrap for ReportRequest {
         let content: String = NostrSigner::Keys(reporter_keys.clone())
             .nip44_encrypt(*receiver_pubkey, kind_14_rumor.as_json())
             .await?;
-        let kind_13_seal = EventBuilder::new(Kind::Seal, content, []).to_event(reporter_keys)?;
+        let kind_13_seal = EventBuilder::new(Kind::Seal, content, [])
+            .custom_created_at(self.random_time_in_last_two_days())
+            .to_event(reporter_keys)?;
 
         // Compose gift wrap
         let expiration = None; // TODO
@@ -49,5 +58,31 @@ impl AsGiftWrap for ReportRequest {
 
         let gift_wrap = GiftWrappedReportRequest::try_from(kind_1059_gift_wrap)?;
         Ok(gift_wrap)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[tokio::test]
+    async fn test_as_gift_wrap() {
+        let reporter_keys = Keys::generate();
+        let receiver_keys = Keys::generate();
+        let rumor = EventBuilder::text_note("Hello", [])
+            .to_event(&reporter_keys)
+            .unwrap();
+        let report_request = ReportRequest::new(rumor, reporter_keys.public_key(), None);
+
+        let gift_wrap = report_request
+            .as_gift_wrap(&reporter_keys, &receiver_keys.public_key())
+            .await
+            .expect("Failed to gift wrap report request");
+
+        let unwrapped_report_request = gift_wrap
+            .extract_report_request(&receiver_keys)
+            .expect("Failed to extract report request");
+
+        assert_eq!(unwrapped_report_request, report_request);
     }
 }
