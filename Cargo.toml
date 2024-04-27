@@ -20,7 +20,7 @@ log = "0.4.21"
 metrics = "0.22.3"
 metrics-exporter-prometheus = "0.14.0"
 nostr-sdk = "0.30.0"
-ractor = {git = "https://github.com/slawlor/ractor", rev = "26a01d69e1d83a6d6f1cfcda668acb6deee74b13" }
+ractor = "0.9.8"
 regex = "1.10.4"
 reqwest = "0.12.3"
 serde = { version = "1.0.197", features = ["derive"] }

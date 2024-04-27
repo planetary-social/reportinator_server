@@ -40,8 +40,22 @@ impl Actor for GiftUnwrapper {
         state: &mut Self::State,
     ) -> Result<(), ActorProcessingErr> {
         match message {
-            // Decrypts and forwards private messages to the output port.
-            GiftUnwrapperMessage::UnwrapEvent(gift_wrap) => {
+            // Decrypts and forwards private messages so they can be sent to
+            // google pubsub or whatever is hooked to the output port.
+            //
+            // Note that this is a good example of what we are trying to achieve
+            // in terms of separation of concerns, keeping the actor logic just
+            // as an orchestrator for our domain code. The brains of the
+            // operation are in the domain model.
+            GiftUnwrapperMessage::UnwrapEvent(maybe_gift_wrap) => {
+                // 1) The actor's message handling, which includes the message From<Event>
+                // implementation, deal with massaging the message to gather the
+                // input for...
+                let Some(gift_wrap) = maybe_gift_wrap else {
+                    return Ok(());
+                };
+
+                // 2) The domain model, which does the real work.
                 let report_request = match gift_wrap.extract_report_request(&state.keys) {
                     Ok(report_request) => report_request,
                     Err(e) => {
@@ -50,6 +64,9 @@ impl Actor for GiftUnwrapper {
                     }
                 };
 
+                // 3) Resulting model output is used to create events
+                // that are sent to the output port for the next actor or any other
+                // IO needed
                 info!(
                     "Request from {} to moderate event {}",
                     report_request.reporter_pubkey(),
@@ -128,9 +145,12 @@ mod tests {
 
         cast!(
             parser_actor_ref,
-            GiftUnwrapperMessage::UnwrapEvent(gift_wrapped_event)
+            GiftUnwrapperMessage::UnwrapEvent(Some(gift_wrapped_event))
         )
         .unwrap();
+
+        // This happens when during the From<Event> conversion, the event
+        cast!(parser_actor_ref, GiftUnwrapperMessage::UnwrapEvent(None)).unwrap();
 
         tokio::spawn(async move {
             sleep(Duration::from_secs(1)).await;

@@ -14,8 +14,7 @@ pub trait AsGiftWrap {
     fn random_time_in_last_two_days(&self) -> Timestamp {
         let now = Timestamp::now();
         let two_days = 2 * 24 * 60 * 60;
-        let random_time = now - (rand::random::<u64>() % two_days);
-        random_time
+        now - (rand::random::<u64>() % two_days)
     }
 }
 
@@ -69,10 +68,10 @@ mod tests {
     async fn test_as_gift_wrap() {
         let reporter_keys = Keys::generate();
         let receiver_keys = Keys::generate();
-        let rumor = EventBuilder::text_note("Hello", [])
+        let event_to_report = EventBuilder::text_note("Hello", [])
             .to_event(&reporter_keys)
             .unwrap();
-        let report_request = ReportRequest::new(rumor, reporter_keys.public_key(), None);
+        let report_request = ReportRequest::new(event_to_report, reporter_keys.public_key(), None);
 
         let gift_wrap = report_request
             .as_gift_wrap(&reporter_keys, &receiver_keys.public_key())
