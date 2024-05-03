@@ -11,21 +11,21 @@ anyhow = "1.0.82"
 axum = "0.7.5"
 env_logger = "0.11.3"
 futures = "0.3.30"
-gcloud-sdk = { version = "0.24.5", features = ["google-pubsub-v1"] }
+gcloud-sdk = { version = "0.24.6", features = ["google-pubsub-v1"] }
 handlebars = "5.1.2"
 http-body-util = "0.1.1"
-hyper = "1.2.0"
-libc = "0.2.153"
+hyper = "1.3.1"
+libc = "0.2.154"
 log = "0.4.21"
 metrics = "0.22.3"
 metrics-exporter-prometheus = "0.14.0"
 nostr-sdk = "0.30.0"
 ractor = "0.9.8"
 regex = "1.10.4"
-reqwest = "0.12.3"
-serde = { version = "1.0.197", features = ["derive"] }
-serde_json = "1.0.115"
-slack-morphism = { version = "2.1.0", features = ["axum"] }
+reqwest = "0.12.4"
+serde = { version = "1.0.200", features = ["derive"] }
+serde_json = "1.0.116"
+slack-morphism = { version = "2.2.0", features = ["axum"] }
 tokio = { version = "1.37.0", features = ["full"] }
 tokio-util = { version = "0.7.10", features = ["rt"] }
 tower = "0.4.13"
