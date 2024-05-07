@@ -11,52 +11,53 @@ The server employs the actor model via [`ractor`](https://github.com/slawlor/rac
 **System Architecture Diagram:**
 
 ```
-┌────────────────────────────┐                       ┌───────────────────────┐                  ┌──────────────────────┐
-│ ┌───────────────────────┐  │        OpenAI         │       Cleanstr        │                  │  Manual Moderation   │
-│ │wss://relay.nos.social │◀─┼────────Report ────────│(Google Cloud Function)│──Not flagged────▶│    Slack Channel     │
-│ └────────────────────▲──┘  │        Event          └───────────────────────┘                  └──────────────────────┘
-│                      │     │                                   ▲                                          │
-│       Nostr Network  │     │                                   │                                          │
-│                      │     │                          ┌────────────────┐                                  │
-│      ┌─────────────┐ │     │                          │  nostr-events  │                                  │
-│      │Encrypted DM │ │     │                          │  Pubsub Topic  │                                  │
-│      └─────────────┘ │     │                          └────────────────┘                                  │
-│             │        │     │                                   ▲                                          │
-└─────────────┼────────┼─────┘                      ┌────────────┼──────────────────────────────────────────┼───────────────┐
-              │        │                            │ ┌──────────┴──────────┐                               │               │
-              │        │                            │ │ ┌─────────────────┐ │                               │               │
-              │        │                            │ │ │ GooglePublisher │ │                               │               │
-              │        │                            │ │ └─────────────────┘ │                               │               │
-            Gift       │                            │ │    EventEnqueuer    │                               │               │
-           Wrapped     │                            │ └─────────────────────┘                               │               │
-           DM with     │                            │            ▲                                         Report           │
-           Report      │                            │            │                                        Request           │
-           Request  Manual                          │ ┌────────────────────┐                                │               │
-              │     Report                          │ │   GiftUnwrapper    │                                │               │
-              │     Event                           │ └────────────────────┘                                │               │
-              │        │                            │            ▲                                          │               │
-              │        │                            │            │                                          │               │
-              │        │                            │┌──────────────────────┐                    ┌──────────▼────────┐      │
-              │        │                            ││┌────────────────────┐│                    │ ┌────────────────┐│      │
-              │        └────────────────────────────┼┼┤    NostrService    ││      Manual        │ │ Slack endpoint ││      │
-              └─────────────────────────────────────┼▶│                    ││◀─────Label─────────┼─│                ││      │
-                                                    ││└────────────────────┘│                    │ └────────────────┘│      │
-                                                    ││ RelayEventDispatcher │                    │ Axum HTTP server  │      │
-                                                    │└──────────────────────┘                    └───────────────────┘      │
-                                                    │                                                                       │
-                                                    │                                                                       │
-                                                    │                          Reportinator Server                          │
-                                                    └───────────────────────────────────────────────────────────────────────┘
+ ┌────────────────────────────┐              ┌───────────────────────┐                  ┌──────────────────────┐
+ │ ┌───────────────────────┐  │   OpenAI     │       Cleanstr        │  Not flagged     │  Manual Moderation   │
+ │ │wss://relay.nos.social │◀─┼───Report ────│(Google Cloud Function)│───by OpenAI─────▶│    Slack Channel     │
+ │ └────────────────────▲──┘  │   Event      └───────────────────────┘                  └────▲─────────────────┘
+ │                      │     │                          ▲                                   │      │
+ │       Nostr Network  │     │                          │                                   │      │
+ │                      │     │                 ┌────────────────┐                           │      │
+ │      ┌─────────────┐ │     │                 │  nostr-events  │                           │      │
+ │      │Encrypted DM │ │     │                 │  Pubsub Topic  │                           │      │
+ │      └─────────────┘ │     │                 └────────────────┘                           │      │
+ │             │        │     │                          ▲                                   │      │
+ └─────────────┼────────┼─────┘                          │                                   │      │
+               │        │                   ┌────────────┼───────────────────────────────────┼──────┼──────────┐
+               │        │                   │ ┌──────────┴──────────┐                        │      │          │
+               │        │                   │ │ ┌─────────────────┐ │                        │      │          │
+               │        │                   │ │ │ GooglePublisher │ │                        │      │          │
+             Gift       │                   │ │ └─────────────────┘ │                        │      │          │
+            Wrapped     │                   │ │    EventEnqueuer    │                        │      │          │
+            DM with     │                   │ └─────────────────────┘                        │     Report      │
+            Report   Manual                 │            ▲                                   │    Request      │
+            Request  Report                 │            │                                   │      │          │
+               │     Event                  │          note                                  │      │          │
+               │        │                   │         report                                 │      │          │
+               │        │                   │        request                                 │      │          │
+               │        │                   │            │                                   │      │          │
+               │        │                   │ ┌────────────────────┐         npub            │      │          │
+               │        │                   │ │   GiftUnwrapper    │────────report ──────────┘      │          │
+               │        │                   │ └────────────────────┘       request                  │          │
+               │        │                   │            ▲                                          │          │
+               │        │                   │            │                                          │          │
+               │        │                   │┌──────────────────────┐                    ┌──────────▼────────┐ │
+               │        │                   ││┌────────────────────┐│                    │ ┌────────────────┐│ │
+               │        └───────────────────┼┼┤    NostrService    ││      Manual        │ │ Slack endpoint ││ │
+               └────────────────────────────┼▶│                    ││◀─────Label─────────┼─│                ││ │
+                                            ││└────────────────────┘│                    │ └────────────────┘│ │
+                                            ││ RelayEventDispatcher │                    │ Axum HTTP server  │ │
+                                            │└──────────────────────┘                    └───────────────────┘ │
+                                            │                       Reportinator Server                        │
+                                            └──────────────────────────────────────────────────────────────────┘
 ```
 The `NostrService` listens for direct messages sent to the Reportinator account, which contain requests for the moderation of specific Nostr notes. These requests are then forwarded to the `GiftUnwrapper` for initial processing in accordance with the NIP-17 standard.
 
-After processing, the `GiftUnwrapper` sends the validated and extracted messages as moderation requests to the `EventEnqueuer`. This component utilizes the `GooglePublisher` to publish the reports to a designated Google PubSub topic, intended for moderation request analysis on nos.social.
+After processing, the `GiftUnwrapper` sends the validated and extracted messages as moderation requests to the `EventEnqueuer`. This component utilizes the `GooglePublisher` to publish the reports to a designated Google PubSub topic, intended for moderation request analysis on nos.social. Npub report requests skip the google topic and are posted directly to the Slack channel
 
 It's noteworthy that this PubSub topic also consolidates moderation requests from various sources, thereby positioning this server as one among several entry points.
 
-A [Google Cloud Function](https://github.com/planetary-social/cleanstr) linked to this topic employs AI to analyze these reports. Reports deemed suspicious are either directly published to `wss://relay.nos.social` if automatically flagged, or forwarded to a Slack channel for manual review. If flagged during the manual review, they are anonymously published through the Reportinator account back into the Nostr network.
-
-
+A [Google Cloud Function](https://github.com/planetary-social/cleanstr) linked to this topic employs AI to analyze these reports. Reports are either directly published to `wss://relay.nos.social` if automatically flagged, or forwarded to a Slack channel for manual review. If flagged during the manual review, they are anonymously published through the Reportinator account back into the Nostr network.
 
 ## Setup
 
@@ -70,7 +71,7 @@ Ensure these environment variables are set before running the Reportinator Serve
 ### Running Locally
 
 1. **Local Nostr Relay**: Start a Nostr relay at `ws://localhost`.
-   
+
 2. **Google Cloud Access**: Authenticate with Google Cloud:
    ```sh
    gcloud auth application-default login
