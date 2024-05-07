@@ -1456,7 +1456,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "02c042191c2e3f27147decfad8182eea2c7dd1c6c1733562e25d3d401369669d"
 dependencies = [
  "bech32",
- "reqwest 0.12.3",
+ "reqwest 0.12.4",
  "serde",
  "serde_json",
 ]
@@ -1643,7 +1643,7 @@ dependencies = [
  "js-sys",
  "negentropy",
  "once_cell",
- "reqwest 0.12.3",
+ "reqwest 0.12.4",
  "scrypt",
  "serde",
  "serde_json",
@@ -2272,7 +2272,7 @@ dependencies = [
  "pretty_assertions",
  "ractor",
  "regex",
- "reqwest 0.12.3",
+ "reqwest 0.12.4",
  "serde",
  "serde_json",
  "slack-morphism",
@@ -2332,9 +2332,9 @@ dependencies = [
 
 [[package]]
 name = "reqwest"
-version = "0.12.3"
+version = "0.12.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3e6cc1e89e689536eb5aeede61520e874df5a4707df811cd5da4aa5fbb2aae19"
+checksum = "566cafdd92868e0939d3fb961bd0dc25fcfaaed179291093b3d43e6b3150ea10"
 dependencies = [
  "base64 0.22.0",
  "bytes",
