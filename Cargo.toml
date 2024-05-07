@@ -25,7 +25,7 @@ regex = "1.10.4"
 reqwest = "0.12.3"
 serde = { version = "1.0.200", features = ["derive"] }
 serde_json = "1.0.115"
-slack-morphism = { version = "2.1.0", features = ["axum"] }
+slack-morphism = { version = "2.2.0", features = ["axum"] }
 tokio = { version = "1.37.0", features = ["full"] }
 tokio-util = { version = "0.7.10", features = ["rt"] }
 tower = "0.4.13"
