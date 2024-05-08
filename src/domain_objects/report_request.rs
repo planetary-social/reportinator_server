@@ -135,7 +135,9 @@ mod tests {
     use serde_json::json;
     use std::str::FromStr;
 
-    fn setup_test_environment() -> (ReportRequest, Event, PublicKey, Option<String>) {
+    fn setup_test_environment(
+        event_target: bool,
+    ) -> (ReportRequest, ReportTarget, PublicKey, Option<String>) {
         let reported_secret = "a39b6f282044c4812c1729a783f32d974ed13072632f08201f52d083593d6e76";
         let reported_keys = Keys::parse(reported_secret).unwrap();
 
@@ -143,20 +145,25 @@ mod tests {
         let reporter_keys = Keys::parse(reporter_secret).unwrap();
         let reporter_pubkey = reporter_keys.public_key();
 
-        let reported_event = EventBuilder::text_note("I'm a hateful text", [])
-            .to_event(&reported_keys)
-            .unwrap();
+        let reported_target = if event_target {
+            let reported_event = EventBuilder::text_note("I'm a hateful text", [])
+                .to_event(&reported_keys)
+                .unwrap();
+            ReportTarget::Event(reported_event)
+        } else {
+            ReportTarget::Pubkey(reported_keys.public_key())
+        };
 
         let reporter_text = Some("This is hateful. Report it!".to_string());
         let report_request = ReportRequest::new(
-            reported_event.clone().into(),
+            reported_target.clone(),
             reporter_pubkey,
             reporter_text.clone(),
         );
 
         (
             report_request,
-            reported_event,
+            reported_target,
             reporter_pubkey,
             reporter_text,
         )
@@ -164,10 +171,10 @@ mod tests {
 
     #[test]
     fn test_report_request() {
-        let (report_request, reported_event, reporter_pubkey, reporter_text) =
-            setup_test_environment();
+        let (report_request, reported_target, reporter_pubkey, reporter_text) =
+            setup_test_environment(true);
 
-        assert_eq!(report_request.target(), &reported_event.into());
+        assert_eq!(report_request.target(), &reported_target);
         assert_eq!(report_request.reporter_pubkey(), &reporter_pubkey);
         assert_eq!(report_request.reporter_text(), reporter_text.as_ref());
         assert_eq!(report_request.valid(), true);
@@ -176,8 +183,8 @@ mod tests {
 
     #[test]
     fn test_report_event() {
-        let (report_request, reported_event, _reporter_pubkey, _reporter_text) =
-            setup_test_environment();
+        let (report_request, reported_target, _reporter_pubkey, _reporter_text) =
+            setup_test_environment(true);
 
         let category = ModerationCategory::from_str("hate").unwrap();
         let maybe_report_event = report_request.report(Some(&category)).unwrap();
@@ -191,9 +198,47 @@ mod tests {
         assert_eq!(report_event_value["kind"], 1984);
         assert_eq!(report_event_value["content"], "Content that expresses, incites, or promotes hate based on race, gender, ethnicity, religion, nationality, sexual orientation, disability status, or caste. Hateful content aimed at non-protected groups (e.g., chess players) is harassment.");
 
+        let ReportTarget::Event(reported_event) = reported_target else {
+            panic!("Expected ReportedTarget::Event, got {:?}", reported_target);
+        };
+
         let expected_tags = vec![
             json!(["p", reported_event.pubkey, "other"]),
             json!(["e", reported_event.id, "other"]),
+            json!(["L", "MOD"]),
+            json!(["l", "MOD>IH", "MOD"]),
+        ];
+
+        for (i, expected_tag) in expected_tags.iter().enumerate() {
+            assert_eq!(&report_event_value["tags"][i], expected_tag);
+        }
+    }
+
+    #[test]
+    fn test_report_pubkey() {
+        let (report_request, reported_target, _reporter_pubkey, _reporter_text) =
+            setup_test_environment(false);
+
+        let category = ModerationCategory::from_str("hate").unwrap();
+        let maybe_report_event = report_request.report(Some(&category)).unwrap();
+        let report_event = maybe_report_event.unwrap().event();
+        let report_event_value = serde_json::to_value(report_event).unwrap();
+
+        assert_eq!(
+            report_event_value["pubkey"],
+            "2ddc92121b9e67172cc0d40b959c416173a3533636144ebc002b7719d8d1c4e3".to_string()
+        );
+        assert_eq!(report_event_value["kind"], 1984);
+        assert_eq!(report_event_value["content"], "Content that expresses, incites, or promotes hate based on race, gender, ethnicity, religion, nationality, sexual orientation, disability status, or caste. Hateful content aimed at non-protected groups (e.g., chess players) is harassment.");
+
+        let ReportTarget::Pubkey(reported_pubkey) = reported_target else {
+            panic!("Expected ReportedTarget::Pubkey, got {:?}", reported_target);
+        };
+
+        assert!(matches!(reported_target, ReportTarget::Pubkey { .. }));
+
+        let expected_tags = vec![
+            json!(["p", reported_pubkey, "other"]),
             json!(["L", "MOD"]),
             json!(["l", "MOD>IH", "MOD"]),
         ];
