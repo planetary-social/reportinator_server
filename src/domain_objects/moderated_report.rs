@@ -1,4 +1,4 @@
-use crate::domain_objects::{ModerationCategory, ReportRequest};
+use crate::domain_objects::{ModerationCategory, ReportRequest, ReportTarget};
 use anyhow::Result;
 use nostr_sdk::prelude::*;
 use serde::{Deserialize, Serialize};
@@ -20,9 +20,11 @@ impl ModeratedReport {
             return Err(anyhow::anyhow!("REPORTINATOR_SECRET env variable not set"));
         };
         let reportinator_keys = Keys::parse(reportinator_secret)?;
-        let reported_pubkey = reported_request.reported_event().pubkey;
-        let reported_event_id = reported_request.reported_event().id;
-        let tags = Self::set_tags(reported_pubkey, Some(reported_event_id), category);
+        let (reported_pubkey, reported_event_id) = match reported_request.target() {
+            ReportTarget::Event(event) => (event.pubkey, Some(event.id)),
+            ReportTarget::Pubkey(pubkey) => (*pubkey, None),
+        };
+        let tags = Self::set_tags(reported_pubkey, reported_event_id, category);
         let report_event = EventBuilder::new(Kind::Reporting, category.description(), tags)
             .to_event(&reportinator_keys)?;
 

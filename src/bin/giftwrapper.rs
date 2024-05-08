@@ -34,7 +34,7 @@ async fn main() -> Result<()> {
     let reported_event = EventBuilder::text_note(&message, []).to_event(&sender_keys)?;
     let reporter_pubkey = sender_keys.public_key();
     let reporter_text = Some("This is wrong, report it!".to_string());
-    let report_request = ReportRequest::new(reported_event, reporter_pubkey, reporter_text);
+    let report_request = ReportRequest::new(reported_event.into(), reporter_pubkey, reporter_text);
     let event_result = report_request
         .as_gift_wrap(&sender_keys, &receiver_pubkey)
         .await;

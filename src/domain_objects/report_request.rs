@@ -7,8 +7,48 @@ use std::fmt::{self, Display, Formatter};
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+pub enum ReportTarget {
+    #[serde(rename = "reportedEvent")]
+    Event(Event),
+    #[serde(rename = "reportedPubkey")]
+    Pubkey(PublicKey),
+}
+
+impl ReportTarget {
+    pub fn pubkey(&self) -> PublicKey {
+        match self {
+            ReportTarget::Event(event) => event.author(),
+            ReportTarget::Pubkey(pubkey) => *pubkey,
+        }
+    }
+}
+
+impl From<Event> for ReportTarget {
+    fn from(event: Event) -> Self {
+        ReportTarget::Event(event)
+    }
+}
+
+impl From<PublicKey> for ReportTarget {
+    fn from(pubkey: PublicKey) -> Self {
+        ReportTarget::Pubkey(pubkey)
+    }
+}
+
+impl Display for ReportTarget {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        match self {
+            ReportTarget::Event(event) => write!(f, "Event {}", event.id),
+            ReportTarget::Pubkey(pubkey) => write!(f, "Pubkey {}", pubkey),
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct ReportRequestRumorContent {
-    reported_event: Event,
+    #[serde(flatten)]
+    target: ReportTarget,
     reporter_text: Option<String>,
 }
 
@@ -22,14 +62,15 @@ impl ReportRequestRumorContent {
 
 impl ReportRequestRumorContent {
     pub fn into_report_request(self, pubkey: PublicKey) -> ReportRequest {
-        ReportRequest::new(self.reported_event, pubkey, self.reporter_text)
+        ReportRequest::new(self.target, pubkey, self.reporter_text)
     }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ReportRequest {
-    reported_event: Event,
+    #[serde(flatten)]
+    target: ReportTarget,
     reporter_pubkey: PublicKey,
     reporter_text: Option<String>,
 }
@@ -37,19 +78,19 @@ pub struct ReportRequest {
 impl ReportRequest {
     #[allow(unused)]
     pub fn new(
-        reported_event: Event,
+        target: ReportTarget,
         reporter_pubkey: PublicKey,
         reporter_text: Option<String>,
     ) -> Self {
         ReportRequest {
-            reported_event,
+            target,
             reporter_pubkey,
             reporter_text,
         }
     }
 
-    pub fn reported_event(&self) -> &Event {
-        &self.reported_event
+    pub fn target(&self) -> &ReportTarget {
+        &self.target
     }
 
     pub fn reporter_pubkey(&self) -> &PublicKey {
@@ -62,7 +103,10 @@ impl ReportRequest {
     }
 
     pub fn valid(&self) -> bool {
-        self.reported_event.verify().is_ok()
+        match &self.target {
+            ReportTarget::Event(event) => event.verify().is_ok(),
+            ReportTarget::Pubkey(_) => true,
+        }
     }
 
     pub fn report(
@@ -105,7 +149,7 @@ mod tests {
 
         let reporter_text = Some("This is hateful. Report it!".to_string());
         let report_request = ReportRequest::new(
-            reported_event.clone(),
+            reported_event.clone().into(),
             reporter_pubkey,
             reporter_text.clone(),
         );
@@ -123,7 +167,7 @@ mod tests {
         let (report_request, reported_event, reporter_pubkey, reporter_text) =
             setup_test_environment();
 
-        assert_eq!(report_request.reported_event(), &reported_event);
+        assert_eq!(report_request.target(), &reported_event.into());
         assert_eq!(report_request.reporter_pubkey(), &reporter_pubkey);
         assert_eq!(report_request.reporter_text(), reporter_text.as_ref());
         assert_eq!(report_request.valid(), true);

@@ -68,9 +68,9 @@ impl Actor for GiftUnwrapper {
                 // that are sent to the output port for the next actor or any other
                 // IO needed
                 info!(
-                    "Request from {} to moderate event {}",
+                    "Request from {} to moderate {}",
                     report_request.reporter_pubkey(),
-                    report_request.reported_event().id()
+                    report_request.target()
                 );
 
                 state.message_parsed_output_port.send(report_request)

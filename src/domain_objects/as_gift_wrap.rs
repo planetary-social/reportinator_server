@@ -71,7 +71,8 @@ mod tests {
         let event_to_report = EventBuilder::text_note("Hello", [])
             .to_event(&reporter_keys)
             .unwrap();
-        let report_request = ReportRequest::new(event_to_report, reporter_keys.public_key(), None);
+        let report_request =
+            ReportRequest::new(event_to_report.into(), reporter_keys.public_key(), None);
 
         let gift_wrap = report_request
             .as_gift_wrap(&reporter_keys, &receiver_keys.public_key())

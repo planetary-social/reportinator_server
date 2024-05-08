@@ -1,7 +1,7 @@
 use super::app_errors::AppError;
 use super::WebAppState;
 use crate::actors::messages::SupervisorMessage;
-use crate::domain_objects::{ModerationCategory, ReportRequest};
+use crate::domain_objects::{ModerationCategory, ReportRequest, ReportTarget};
 use anyhow::{anyhow, Context, Result};
 use axum::{extract::State, routing::post, Extension, Router};
 use nostr_sdk::prelude::*;
@@ -84,7 +84,7 @@ async fn slack_message(
 
     let reported_nip05_markdown = try_njump(
         message_dispatcher.clone(),
-        &report_request.reported_event().author(),
+        &report_request.target().pubkey(),
     )
     .await?;
 
@@ -122,6 +122,26 @@ fn slack_processed_message(
     report_request: ReportRequest,
     reported_nip05_markdown: String,
 ) -> String {
+    let target_message = match report_request.target() {
+        ReportTarget::Event(event) => format!(
+            r#"
+            *Reported Pubkey:* {}
+            *Reported Event Id:* `{}`
+            *Reported Event content:*
+            ```
+            {}
+            ```
+            "#,
+            reported_nip05_markdown, event.id, event.content
+        ),
+        ReportTarget::Pubkey(_) => format!(
+            r#"
+            *Reported Pubkey:* {}
+            "#,
+            reported_nip05_markdown
+        ),
+    };
+
     let message = format!(
         r#"
         🚩 *New Moderation Report* 🚩
@@ -136,21 +156,14 @@ fn slack_processed_message(
         {}
         ```
 
-        *Reported Pubkey:* {}
-        *Reported Event Id:* `{}`
-        *Reported Event content:*
-        ```
         {}
-        ```
         "#,
         slack_username,
         category,
         report_id,
         reporter_nip05_markdown,
         report_request.reporter_text().unwrap_or(&"".to_string()),
-        reported_nip05_markdown,
-        report_request.reported_event().id,
-        report_request.reported_event().content
+        target_message,
     );
 
     let trimmed_string = message
@@ -168,6 +181,26 @@ fn slack_skipped_message(
     report_request: ReportRequest,
     reported_nip05_markdown: String,
 ) -> String {
+    let target_message = match report_request.target() {
+        ReportTarget::Event(event) => format!(
+            r#"
+            *Reported Pubkey:* {}
+            *Reported Event Id:* `{}`
+            *Reported Event content:*
+            ```
+            {}
+            ```
+            "#,
+            reported_nip05_markdown, event.id, event.content
+        ),
+        ReportTarget::Pubkey(_) => format!(
+            r#"
+            *Reported Pubkey:* {}
+            "#,
+            reported_nip05_markdown
+        ),
+    };
+
     let message = format!(
         r#"
         ⏭️ *Moderation Report Skipped* ⏭️
@@ -180,19 +213,12 @@ fn slack_skipped_message(
         {}
         ```
 
-        *Reported Pubkey:* {}
-        *Reported Event Id:* `{}`
-        *Reported Event content:*
-        ```
         {}
-            ```
         "#,
         slack_username,
         reporter_nip05_markdown,
         report_request.reporter_text().unwrap_or(&"".to_string()),
-        reported_nip05_markdown,
-        report_request.reported_event().id,
-        report_request.reported_event().content
+        target_message,
     );
 
     let trimmed_string = message
@@ -242,15 +268,33 @@ fn parse_slack_action(
         .ok_or_else(|| anyhow!("Missing action_id"))?;
 
     let reported_event_value = find_block_id(&event_value, "reportedEvent")?;
+    let reported_pubkey = find_block_id(&event_value, "reportedPubkey")?;
     let reporter_text = find_block_id(&event_value, "reporterText")?;
 
-    let reported_event = Event::from_json(reported_event_value)
-        .map_err(|_| AppError::slack_parsing_error("reported_event"))?;
+    let target = match reported_event_value {
+        None => match reported_pubkey {
+            None => {
+                return Err(AppError::slack_parsing_error(
+                    "neither reportedEvent nor reportedPubkey present",
+                ))
+            }
+            Some(reported_pubkey_value) => {
+                let reported_pubkey = PublicKey::from_hex(reported_pubkey_value)
+                    .map_err(|_| AppError::slack_parsing_error("reported_pubkey"))?;
+                ReportTarget::Pubkey(reported_pubkey)
+            }
+        },
+        Some(reported_event_value) => {
+            let reported_event = Event::from_json(reported_event_value)
+                .map_err(|_| AppError::slack_parsing_error("reported_event"))?;
+            ReportTarget::Event(reported_event)
+        }
+    };
 
     let reporter_pubkey = PublicKey::from_hex(action_value)
         .map_err(|_| AppError::slack_parsing_error("reporter_pubkey"))?;
 
-    let report_request = ReportRequest::new(reported_event, reporter_pubkey, Some(reporter_text));
+    let report_request = ReportRequest::new(target, reporter_pubkey, reporter_text);
     let maybe_category = ModerationCategory::from_str(action_id).ok();
 
     Ok((
@@ -261,7 +305,7 @@ fn parse_slack_action(
     ))
 }
 
-fn find_block_id(event_value: &Value, block_id_text: &str) -> Result<String, AppError> {
+fn find_block_id(event_value: &Value, block_id_text: &str) -> Result<Option<String>, AppError> {
     let reported_event_value = event_value["message"]["blocks"]
         .as_array()
         .and_then(|blocks| {
@@ -277,9 +321,9 @@ fn find_block_id(event_value: &Value, block_id_text: &str) -> Result<String, App
                     }
                 })
             })
-        })
-        .ok_or_else(|| anyhow!("Missing block_id with value {}", block_id_text))?;
-    Ok(reported_event_value.to_string())
+        });
+
+    Ok(reported_event_value.map(|s| s.to_string()))
 }
 
 async fn send_slack_response(response_url: &str, response_text: &str) -> Result<()> {
@@ -390,7 +434,7 @@ mod tests {
         );
         assert_eq!(username, "daniel");
         assert!(maybe_moderated_report.is_some());
-        assert_eq!(parsed_report_request.reported_event(), &reported_event);
+        assert_eq!(parsed_report_request.target(), &reported_event.into());
         assert_eq!(parsed_report_request.reporter_pubkey(), &reporter_pubkey);
         assert_eq!(
             parsed_report_request.reporter_text(),
@@ -426,7 +470,7 @@ mod tests {
         );
         assert_eq!(username, "daniel");
         assert!(maybe_moderated_report.is_none());
-        assert_eq!(parsed_report_request.reported_event(), &reported_event);
+        assert_eq!(parsed_report_request.target(), &reported_event.into());
         assert_eq!(parsed_report_request.reporter_pubkey(), &reporter_pubkey);
         assert_eq!(
             parsed_report_request.reporter_text(),

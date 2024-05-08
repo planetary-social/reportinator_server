@@ -59,10 +59,7 @@ where
                 }
 
                 counter!("events_enqueued").increment(1);
-                info!(
-                    "Event {} enqueued for moderation",
-                    report_request.reported_event().id()
-                );
+                info!("Event {} enqueued for moderation", report_request.target());
             }
         }
 
