@@ -1,6 +1,8 @@
 [env]
 RELAY_ADDRESSES_CSV = "ws://localhost"
 REPORTINATOR_SECRET = "feef9c2dcd6a1175a97dfbde700fa54f58ce69d4f30963f70efcc7257636759f"
-SLACK_SIGNING_SECRET = "something"
 RUST_LOG = "info"
+SLACK_CHANNEL_ID="C06SBEF40G0"
+SLACK_SIGNING_SECRET = "something"
+SLACK_TOKEN = "something"
 TEMPLATES_DIR= "templates"

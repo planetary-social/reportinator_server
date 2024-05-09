@@ -1,6 +1,6 @@
 use crate::actors::PubsubPort;
-use crate::domain_objects::ReportRequest;
-use anyhow::{Context, Result};
+use crate::domain_objects::{ReportRequest, ReportTarget};
+use anyhow::{bail, Context, Result};
 use gcloud_sdk::{
     google::pubsub::v1::{publisher_client::PublisherClient, PublishRequest, PubsubMessage},
     *,
@@ -35,6 +35,9 @@ impl GooglePublisher {
 #[ractor::async_trait]
 impl PubsubPort for GooglePublisher {
     async fn publish_event(&mut self, report_request: &ReportRequest) -> Result<()> {
+        if let ReportTarget::Pubkey(_) = report_request.target() {
+            bail!("Cannot publish event with Pubkey target to Google Pubsub")
+        }
         let pubsub_message = PubsubMessage {
             data: serde_json::to_vec(report_request)
                 .context("Failed to serialize event to JSON")?,

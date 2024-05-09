@@ -5,6 +5,7 @@ use nostr_sdk::prelude::*;
 
 #[async_trait]
 pub trait AsGiftWrap {
+    #[allow(unused)]
     async fn as_gift_wrap(
         &self,
         reporter_keys: &Keys,

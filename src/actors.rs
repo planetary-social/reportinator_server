@@ -7,6 +7,9 @@ pub use gift_unwrapper::GiftUnwrapper;
 pub mod event_enqueuer;
 pub use event_enqueuer::{EventEnqueuer, PubsubPort};
 
+pub mod slack_writer;
+pub use slack_writer::{SlackClientPort, SlackClientPortBuilder, SlackWriter};
+
 pub mod supervisor;
 pub use supervisor::Supervisor;
 

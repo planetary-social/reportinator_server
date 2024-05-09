@@ -24,21 +24,21 @@ The server employs the actor model via [`ractor`](https://github.com/slawlor/rac
  │             │        │     │                          ▲                                   │      │
  └─────────────┼────────┼─────┘                          │                                   │      │
                │        │                   ┌────────────┼───────────────────────────────────┼──────┼──────────┐
-               │        │                   │ ┌──────────┴──────────┐                        │      │          │
-               │        │                   │ │ ┌─────────────────┐ │                        │      │          │
-               │        │                   │ │ │ GooglePublisher │ │                        │      │          │
-             Gift       │                   │ │ └─────────────────┘ │                        │      │          │
-            Wrapped     │                   │ │    EventEnqueuer    │                        │      │          │
-            DM with     │                   │ └─────────────────────┘                        │     Report      │
-            Report   Manual                 │            ▲                                   │    Request      │
-            Request  Report                 │            │                                   │      │          │
-               │     Event                  │          note                                  │      │          │
-               │        │                   │         report                                 │      │          │
-               │        │                   │        request                                 │      │          │
-               │        │                   │            │                                   │      │          │
-               │        │                   │ ┌────────────────────┐         npub            │      │          │
-               │        │                   │ │   GiftUnwrapper    │────────report ──────────┘      │          │
-               │        │                   │ └────────────────────┘       request                  │          │
+               │        │                   │ ┌──────────┴──────────┐     ┌──────────────────┴──┐   │          │
+               │        │                   │ │ ┌─────────────────┐ │     │ ┌─────────────────┐ │   │          │
+               │        │                   │ │ │ GooglePublisher │ │     │ │   SlackClient   │ │   │          │
+             Gift       │                   │ │ └─────────────────┘ │     │ └─────────────────┘ │   │          │
+            Wrapped     │                   │ │    EventEnqueuer    │     │     SlackWriter     │   │          │
+            DM with     │                   │ └─────────────────────┘     └─────────────────────┘  Report      │
+            Report   Manual                 │            ▲                           ▲            Request      │
+            Request  Report                 │            │                           │              │          │
+               │     Event                  │          note                          │              │          │
+               │        │                   │         report                         │              │          │
+               │        │                   │        request                         │              │          │
+               │        │                   │            │                           │              │          │
+               │        │                   │ ┌────────────────────┐    npub         │              │          │
+               │        │                   │ │   GiftUnwrapper    │───report ───────┘              │          │
+               │        │                   │ └────────────────────┘  request                       │          │
                │        │                   │            ▲                                          │          │
                │        │                   │            │                                          │          │
                │        │                   │┌──────────────────────┐                    ┌──────────▼────────┐ │

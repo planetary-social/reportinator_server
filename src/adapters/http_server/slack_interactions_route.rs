@@ -151,7 +151,8 @@ fn slack_processed_message(
         *Report Id:* `{}`
 
         *Requested By*: {}
-        *Reason:*
+        *Reporter Reason:*
+
         ```
         {}
         ```
@@ -208,7 +209,7 @@ fn slack_skipped_message(
         *Report Skipped By:* {}
 
         *Requested By*: {}
-        *Reason:*
+        *Reporter Reason:*
         ```
         {}
         ```
@@ -276,7 +277,7 @@ fn parse_slack_action(
             None => {
                 return Err(AppError::slack_parsing_error(
                     "neither reportedEvent nor reportedPubkey present",
-                ))
+                ));
             }
             Some(reported_pubkey_value) => {
                 let reported_pubkey = PublicKey::from_hex(reported_pubkey_value)
@@ -312,10 +313,19 @@ fn find_block_id(event_value: &Value, block_id_text: &str) -> Result<Option<Stri
             blocks.iter().find_map(|block| {
                 block["block_id"].as_str().and_then(|block_id| {
                     if block_id == block_id_text {
-                        block["elements"].as_array()?.first()?["elements"]
-                            .as_array()?
-                            .first()?["text"]
-                            .as_str()
+                        let first_element = block["elements"].as_array()?.first()?;
+
+                        let maybe_nested = first_element["elements"]
+                            .as_array()
+                            .map(|a| a.first())
+                            .flatten()
+                            .map(|v| v["text"].as_str())
+                            .flatten();
+
+                        match maybe_nested {
+                            Some(nested) => Some(nested.to_string()),
+                            None => first_element["text"].as_str().map(|s| s.to_string()),
+                        }
                     } else {
                         None
                     }

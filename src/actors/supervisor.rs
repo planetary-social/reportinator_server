@@ -1,7 +1,7 @@
-use crate::actors::PubsubPort;
 use crate::actors::{
     messages::{GiftUnwrapperMessage, RelayEventDispatcherMessage, SupervisorMessage},
-    EventEnqueuer, GiftUnwrapper, NostrPort, RelayEventDispatcher,
+    EventEnqueuer, GiftUnwrapper, NostrPort, PubsubPort, RelayEventDispatcher,
+    SlackClientPortBuilder, SlackWriter,
 };
 use anyhow::Result;
 use metrics::counter;
@@ -9,13 +9,14 @@ use nostr_sdk::prelude::*;
 use ractor::{call_t, cast, Actor, ActorProcessingErr, ActorRef, SupervisionEvent};
 use tracing::error;
 
-pub struct Supervisor<T, U> {
-    _phantom: std::marker::PhantomData<(T, U)>,
+pub struct Supervisor<T, U, V> {
+    _phantom: std::marker::PhantomData<(T, U, V)>,
 }
-impl<T, U> Default for Supervisor<T, U>
+impl<T, U, V> Default for Supervisor<T, U, V>
 where
     T: NostrPort,
     U: PubsubPort,
+    V: SlackClientPortBuilder,
 {
     fn default() -> Self {
         Self {
@@ -25,19 +26,25 @@ where
 }
 
 #[ractor::async_trait]
-impl<T, U> Actor for Supervisor<T, U>
+impl<T, U, V> Actor for Supervisor<T, U, V>
 where
     T: NostrPort,
     U: PubsubPort,
+    V: SlackClientPortBuilder,
 {
     type Msg = SupervisorMessage;
     type State = ActorRef<RelayEventDispatcherMessage>;
-    type Arguments = (T, U, Keys);
+    type Arguments = (T, U, V, Keys);
 
     async fn pre_start(
         &self,
         myself: ActorRef<Self::Msg>,
-        (nostr_subscriber, google_publisher, reportinator_keys): (T, U, Keys),
+        (nostr_subscriber, google_publisher, slack_writer_builder, reportinator_keys): (
+            T,
+            U,
+            V,
+            Keys,
+        ),
     ) -> Result<Self::State, ActorProcessingErr> {
         // Spawn actors and wire them together
         let (event_dispatcher, _event_dispatcher_handle) = Actor::spawn_linked(
@@ -69,9 +76,24 @@ where
         )
         .await?;
 
+        let slack_client_port = slack_writer_builder.build(myself.clone())?;
+
+        let (slack_writer, _slack_writer_handle) = Actor::spawn_linked(
+            Some("slack_writer".to_string()),
+            SlackWriter::default(),
+            slack_client_port,
+            myself.get_cell(),
+        )
+        .await?;
+
         cast!(
             gift_unwrapper,
             GiftUnwrapperMessage::SubscribeToEventUnwrapped(Box::new(event_enqueuer))
+        )?;
+
+        cast!(
+            gift_unwrapper,
+            GiftUnwrapperMessage::SubscribeToEventUnwrapped(Box::new(slack_writer))
         )?;
 
         // Connect as the last message once everything is wired up

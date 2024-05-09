@@ -53,6 +53,17 @@ impl From<ReportRequest> for EventEnqueuerMessage {
     }
 }
 
+#[derive(Debug)]
+pub enum SlackWriterMessage {
+    Write(ReportRequest),
+}
+
+impl From<ReportRequest> for SlackWriterMessage {
+    fn from(report_request: ReportRequest) -> Self {
+        SlackWriterMessage::Write(report_request)
+    }
+}
+
 #[derive(Debug, Clone)]
 pub enum TestActorMessage<T> {
     EventHappened(T),

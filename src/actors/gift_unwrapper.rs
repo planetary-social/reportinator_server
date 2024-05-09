@@ -55,7 +55,7 @@ impl Actor for GiftUnwrapper {
                     return Ok(());
                 };
 
-                // 2) The domain model, which does the real work.
+                // 2) ...the domain model, which does the real work.
                 let report_request = match gift_wrap.extract_report_request(&state.keys) {
                     Ok(report_request) => report_request,
                     Err(e) => {
