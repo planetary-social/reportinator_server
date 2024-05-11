@@ -36,14 +36,14 @@ async fn main() -> Result<()> {
                 .expect("Failed to read message from stdin")
                 .expect("Failed to read line");
 
-            let reported_event = EventBuilder::text_note(&message, []).to_event(&sender_keys)?;
+            let reported_event = EventBuilder::text_note(message, []).to_event(&sender_keys)?;
             ReportTarget::Event(reported_event)
         }
     };
 
     let reporter_pubkey = sender_keys.public_key();
     let reporter_text = Some("This is wrong, report it!".to_string());
-    let report_request = ReportRequest::new(target.into(), reporter_pubkey, reporter_text);
+    let report_request = ReportRequest::new(target, reporter_pubkey, reporter_text);
     let event_result = report_request
         .as_gift_wrap(&sender_keys, &receiver_pubkey)
         .await;

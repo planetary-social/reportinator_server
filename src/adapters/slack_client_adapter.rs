@@ -16,13 +16,8 @@ pub struct SlackClientAdapter {
     nostr_actor: ActorRef<SupervisorMessage>,
 }
 
+#[derive(Default)]
 pub struct SlackClientAdapterBuilder {}
-
-impl Default for SlackClientAdapterBuilder {
-    fn default() -> Self {
-        Self {}
-    }
-}
 
 impl SlackClientPortBuilder for SlackClientAdapterBuilder {
     fn build(&self, nostr_actor: ActorRef<SupervisorMessage>) -> Result<impl SlackClientPort> {

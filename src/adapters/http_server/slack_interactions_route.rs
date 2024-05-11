@@ -317,10 +317,8 @@ fn find_block_id(event_value: &Value, block_id_text: &str) -> Result<Option<Stri
 
                         let maybe_nested = first_element["elements"]
                             .as_array()
-                            .map(|a| a.first())
-                            .flatten()
-                            .map(|v| v["text"].as_str())
-                            .flatten();
+                            .and_then(|a| a.first())
+                            .and_then(|v| v["text"].as_str());
 
                         match maybe_nested {
                             Some(nested) => Some(nested.to_string()),
