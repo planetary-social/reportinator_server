@@ -40,8 +40,22 @@ impl Actor for GiftUnwrapper {
         state: &mut Self::State,
     ) -> Result<(), ActorProcessingErr> {
         match message {
-            // Decrypts and forwards private messages to the output port.
-            GiftUnwrapperMessage::UnwrapEvent(gift_wrap) => {
+            // Decrypts and forwards private messages so they can be sent to
+            // google pubsub or whatever is hooked to the output port.
+            //
+            // Note that this is a good example of what we are trying to achieve
+            // in terms of separation of concerns, keeping the actor logic just
+            // as an orchestrator for our domain code. The brains of the
+            // operation are in the domain model.
+            GiftUnwrapperMessage::UnwrapEvent(maybe_gift_wrap) => {
+                // 1) The actor's message handling, which includes the message From<Event>
+                // implementation, deal with massaging the message to gather the
+                // input for...
+                let Some(gift_wrap) = maybe_gift_wrap else {
+                    return Ok(());
+                };
+
+                // 2) ...the domain model, which does the real work.
                 let report_request = match gift_wrap.extract_report_request(&state.keys) {
                     Ok(report_request) => report_request,
                     Err(e) => {
@@ -50,10 +64,13 @@ impl Actor for GiftUnwrapper {
                     }
                 };
 
+                // 3) Resulting model output is used to create events
+                // that are sent to the output port for the next actor or any other
+                // IO needed
                 info!(
-                    "Request from {} to moderate event {}",
+                    "Request from {} to moderate {}",
                     report_request.reporter_pubkey(),
-                    report_request.reported_event().id()
+                    report_request.target()
                 );
 
                 state.message_parsed_output_port.send(report_request)
@@ -80,7 +97,7 @@ mod tests {
     use tokio::time::{sleep, Duration};
 
     #[tokio::test]
-    async fn test_gift_unwrapper() {
+    async fn test_gift_unwrapper_with_event() {
         // Fake of course
         let reportinator_secret =
             "feef9c2dcd6a1175a97dfbde700fa54f58ce69d4f30963f70efcc7257636759f";
@@ -128,9 +145,76 @@ mod tests {
 
         cast!(
             parser_actor_ref,
-            GiftUnwrapperMessage::UnwrapEvent(gift_wrapped_event)
+            GiftUnwrapperMessage::UnwrapEvent(Some(gift_wrapped_event))
         )
         .unwrap();
+
+        // This happens when during the From<Event> conversion, the event
+        cast!(parser_actor_ref, GiftUnwrapperMessage::UnwrapEvent(None)).unwrap();
+
+        tokio::spawn(async move {
+            sleep(Duration::from_secs(1)).await;
+            parser_actor_ref.stop(None);
+            receiver_actor_ref.stop(None);
+        });
+
+        parser_handle.await.unwrap();
+        receiver_actor_handle.await.unwrap();
+
+        assert_eq!(messages_received.lock().await.as_ref(), [report_request]);
+    }
+
+    #[tokio::test]
+    async fn test_gift_unwrapper_with_pubkey() {
+        // Fake of course
+        let reportinator_secret =
+            "feef9c2dcd6a1175a97dfbde700fa54f58ce69d4f30963f70efcc7257636759f";
+        let reportinator_keys = Keys::parse(reportinator_secret).unwrap();
+        let receiver_pubkey = reportinator_keys.public_key();
+
+        let sender_secret = "51ce70ac70753e62f9baf4a8ce5e1334c30360ab14783016775ecb42dc322571";
+        let sender_keys = Keys::parse(sender_secret).unwrap();
+
+        let bad_guy_keys = Keys::generate();
+
+        let report_request_string = json!({
+            "reportedPubkey": bad_guy_keys.public_key().to_string(),
+            "reporterPubkey": sender_keys.public_key().to_string(),
+            "reporterText": "This is hateful. Report it!"
+        })
+        .to_string();
+        let report_request: ReportRequest = serde_json::from_str(&report_request_string).unwrap();
+
+        let gift_wrapped_event = report_request
+            .as_gift_wrap(&sender_keys, &receiver_pubkey)
+            .await
+            .unwrap();
+
+        let messages_received = Arc::new(Mutex::new(Vec::<ReportRequest>::new()));
+        let (receiver_actor_ref, receiver_actor_handle) =
+            Actor::spawn(None, TestActor::default(), Some(messages_received.clone()))
+                .await
+                .unwrap();
+
+        let (parser_actor_ref, parser_handle) =
+            Actor::spawn(None, GiftUnwrapper, reportinator_keys)
+                .await
+                .unwrap();
+
+        cast!(
+            parser_actor_ref,
+            GiftUnwrapperMessage::SubscribeToEventUnwrapped(Box::new(receiver_actor_ref.clone()))
+        )
+        .unwrap();
+
+        cast!(
+            parser_actor_ref,
+            GiftUnwrapperMessage::UnwrapEvent(Some(gift_wrapped_event))
+        )
+        .unwrap();
+
+        // This happens when during the From<Event> conversion, the event
+        cast!(parser_actor_ref, GiftUnwrapperMessage::UnwrapEvent(None)).unwrap();
 
         tokio::spawn(async move {
             sleep(Duration::from_secs(1)).await;

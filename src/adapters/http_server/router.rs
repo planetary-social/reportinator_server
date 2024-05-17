@@ -69,6 +69,11 @@ fn setup_metrics() -> Result<metrics_exporter_prometheus::PrometheusHandle, anyh
     describe_counter!("connect_error", "Number of errors connecting to nostr");
     describe_counter!("reconnect", "Number of reconnections to nostr");
     describe_counter!("reconnect_error", "Number of errors reconnecting to nostr");
+    describe_counter!("slack_write_message", "Number of writes to slack");
+    describe_counter!(
+        "slack_write_message_error",
+        "Number of errors when writing to slack"
+    );
 
     let prometheus_builder = PrometheusBuilder::new();
     let prometheus_handle = prometheus_builder.install_recorder()?;

@@ -1,5 +1,5 @@
-use crate::actors::messages::EventEnqueuerMessage;
 use crate::domain_objects::ReportRequest;
+use crate::{actors::messages::EventEnqueuerMessage, domain_objects::ReportTarget};
 use anyhow::Result;
 use metrics::counter;
 use ractor::{Actor, ActorProcessingErr, ActorRef};
@@ -52,6 +52,11 @@ where
     ) -> Result<(), ActorProcessingErr> {
         match message {
             EventEnqueuerMessage::Enqueue(report_request) => {
+                if let ReportTarget::Pubkey(_) = report_request.target() {
+                    info!("Ignoring pubkey report request for event enqueuer, these go directly to slack");
+                    return Ok(());
+                }
+
                 if let Err(e) = state.pubsub_publisher.publish_event(&report_request).await {
                     counter!("events_enqueued_error").increment(1);
                     error!("Failed to publish event: {}", e);
@@ -59,10 +64,7 @@ where
                 }
 
                 counter!("events_enqueued").increment(1);
-                info!(
-                    "Event {} enqueued for moderation",
-                    report_request.reported_event().id()
-                );
+                info!("Event {} enqueued for moderation", report_request.target());
             }
         }
 

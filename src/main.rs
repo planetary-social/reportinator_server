@@ -4,9 +4,9 @@ mod domain_objects;
 mod service_manager;
 
 use crate::actors::Supervisor;
-use crate::adapters::{GooglePublisher, HttpServer, NostrService};
+use crate::adapters::{GooglePublisher, HttpServer, NostrService, SlackClientAdapterBuilder};
 use crate::service_manager::ServiceManager;
-use actors::{NostrPort, PubsubPort};
+use actors::{NostrPort, PubsubPort, SlackClientPortBuilder};
 use anyhow::{Context, Result};
 use nostr_sdk::prelude::*;
 use std::env;
@@ -42,8 +42,15 @@ async fn main() -> Result<()> {
 
     let nostr_subscriber = NostrService::create(relays, gift_wrap_filter).await?;
     let google_publisher = GooglePublisher::create().await?;
+    let slack_writer_builder = SlackClientAdapterBuilder::default();
 
-    start_server(nostr_subscriber, google_publisher, reportinator_keys).await
+    start_server(
+        nostr_subscriber,
+        google_publisher,
+        slack_writer_builder,
+        reportinator_keys,
+    )
+    .await
 }
 
 /// Starts the server by spawning actors and wiring them together
@@ -86,6 +93,7 @@ async fn main() -> Result<()> {
 async fn start_server(
     nostr_subscriber: impl NostrPort,
     google_publisher: impl PubsubPort,
+    slack_writer_builder: impl SlackClientPortBuilder,
     reportinator_keys: Keys,
 ) -> Result<()> {
     let mut manager = ServiceManager::new();
@@ -94,7 +102,12 @@ async fn start_server(
     let supervisor = manager
         .spawn_actor(
             Supervisor::default(),
-            (nostr_subscriber, google_publisher, reportinator_keys),
+            (
+                nostr_subscriber,
+                google_publisher,
+                slack_writer_builder,
+                reportinator_keys,
+            ),
         )
         .await?;
 

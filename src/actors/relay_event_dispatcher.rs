@@ -1,5 +1,4 @@
 use crate::actors::messages::RelayEventDispatcherMessage;
-use crate::domain_objects::GiftWrappedReportRequest;
 use crate::service_manager::ServiceManager;
 use anyhow::Result;
 use metrics::counter;
@@ -20,7 +19,7 @@ impl<T: NostrPort> Default for RelayEventDispatcher<T> {
     }
 }
 pub struct State<T: NostrPort> {
-    event_received_output_port: OutputPort<GiftWrappedReportRequest>,
+    event_received_output_port: OutputPort<Event>,
     subscription_task_manager: Option<ServiceManager>,
     nostr_client: T,
 }
@@ -153,18 +152,7 @@ impl<T: NostrPort> Actor for RelayEventDispatcher<T> {
                 subscriber.subscribe_to_port(&state.event_received_output_port);
             }
             RelayEventDispatcherMessage::EventReceived(event) => {
-                let gift_wrapped_report_request = match GiftWrappedReportRequest::try_from(event) {
-                    Ok(gift) => gift,
-                    Err(e) => {
-                        counter!("event_received_error").increment(1);
-                        error!("Failed to get gift wrap event: {}", e);
-                        return Ok(());
-                    }
-                };
-
-                state
-                    .event_received_output_port
-                    .send(gift_wrapped_report_request);
+                state.event_received_output_port.send(event);
                 counter!("event_received").increment(1);
             }
             RelayEventDispatcherMessage::Publish(moderated_report) => {
@@ -314,7 +302,7 @@ mod tests {
         .await
         .unwrap();
 
-        let received_messages = Arc::new(Mutex::new(Vec::<GiftWrappedReportRequest>::new()));
+        let received_messages = Arc::new(Mutex::new(Vec::<Event>::new()));
 
         let (receiver_ref, receiver_handle) =
             Actor::spawn(None, TestActor::default(), Some(received_messages.clone()))
@@ -343,10 +331,7 @@ mod tests {
 
         assert_eq!(
             received_messages.lock().await.as_ref(),
-            [
-                GiftWrappedReportRequest::try_from(first_event).unwrap(),
-                GiftWrappedReportRequest::try_from(second_event).unwrap()
-            ]
+            [first_event, second_event]
         );
     }
 }
