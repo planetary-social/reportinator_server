@@ -1098,6 +1098,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "heck"
+version = "0.4.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "95505c38b4572b2d910cecb0281560f54b440a19336cbbcb27bf6ce6adc6f5a8"
+
+[[package]]
 name = "hermit-abi"
 version = "0.3.9"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2175,15 +2181,15 @@ dependencies = [
 
 [[package]]
 name = "ractor"
-version = "0.9.8"
+version = "0.10.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b1d551077e2f2f354bd9cbe5520fe493cf57618bc70c1de4609f022ee9cc5d33"
+checksum = "5d5deec7e08a845862905d3191ef666841ff60544f006df7e74c7c4b84aa81f0"
 dependencies = [
  "async-trait",
  "dashmap",
  "futures",
  "once_cell",
- "rand",
+ "strum",
  "tokio",
  "tracing",
 ]
@@ -2956,6 +2962,28 @@ name = "strsim"
 version = "0.11.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7da8b5736845d9f2fcb837ea5d9e2628564b3b043a70948a3f0b778838c5fb4f"
+
+[[package]]
+name = "strum"
+version = "0.26.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "5d8cec3501a5194c432b2b7976db6b7d10ec95c253208b45f83f7136aa985e29"
+dependencies = [
+ "strum_macros",
+]
+
+[[package]]
+name = "strum_macros"
+version = "0.26.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "c6cf59daf282c0a494ba14fd21610a0325f9f90ec9d1231dea26bcb1d696c946"
+dependencies = [
+ "heck",
+ "proc-macro2",
+ "quote",
+ "rustversion",
+ "syn 2.0.60",
+]
 
 [[package]]
 name = "subtle"
