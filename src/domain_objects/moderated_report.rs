@@ -38,19 +38,19 @@ impl ModeratedReport {
         reported_event_id: Option<EventId>,
         category: &ModerationCategory,
     ) -> impl IntoIterator<Item = Tag> {
-        let pubkey_tag = Tag::PubKeyReport(reported_pubkey, category.nip56_report_type());
+        let pubkey_tag = Tag::public_key_report(reported_pubkey, category.nip56_report_type());
         let mut tags = vec![pubkey_tag];
 
         reported_event_id
-            .inspect(|id| tags.push(Tag::EventReport(*id, category.nip56_report_type())));
+            .inspect(|id| tags.push(Tag::event_report(*id, category.nip56_report_type())));
 
-        let label_namespace_tag = Tag::Generic(
+        let label_namespace_tag = Tag::custom(
             TagKind::SingleLetter(SingleLetterTag::uppercase(Alphabet::L)),
             vec!["MOD".to_string()],
         );
         tags.push(label_namespace_tag);
 
-        let label_tag = Tag::Generic(
+        let label_tag = Tag::custom(
             TagKind::SingleLetter(SingleLetterTag::lowercase(Alphabet::L)),
             vec![format!("MOD>{}", category.nip69()), "MOD".to_string()],
         );

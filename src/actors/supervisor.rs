@@ -147,7 +147,7 @@ where
                 }
                 myself.stop(None)
             }
-            SupervisionEvent::ActorPanicked(dead_actor, panic_msg) => {
+            SupervisionEvent::ActorFailed(dead_actor, panic_msg) => {
                 counter!("actor_panicked").increment(1);
                 error!("Actor panicked: {:?}, panic: {}", dead_actor, panic_msg);
             }
