@@ -7,7 +7,7 @@ default-run = "reportinator_server"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-anyhow = "1.0.82"
+anyhow = "1.0.86"
 axum = "0.7.5"
 clap = "4.5.4"
 env_logger = "0.11.3"
