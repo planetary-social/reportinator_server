@@ -40,8 +40,9 @@ impl AsGiftWrap for ReportRequest {
         let report_request_json =
             serde_json::to_string(self).expect("Failed to serialize ReportRequest to JSON");
         // Compose rumor
-        let kind_14_rumor = EventBuilder::sealed_direct(*receiver_pubkey, report_request_json)
-            .to_unsigned_event(reporter_keys.public_key());
+        let kind_14_rumor =
+            EventBuilder::private_msg_rumor(*receiver_pubkey, report_request_json, None)
+                .to_unsigned_event(reporter_keys.public_key());
 
         // Compose seal
         let content: String = NostrSigner::Keys(reporter_keys.clone())

@@ -1,5 +1,6 @@
 use anyhow::anyhow;
-use nostr_sdk::Report;
+use nostr_sdk::nips::nip56::Report;
+
 use std::fmt::{self, Display, Formatter};
 use std::str::FromStr;
 
