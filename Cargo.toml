@@ -23,7 +23,7 @@ log = "0.4.21"
 metrics = "0.22.3"
 metrics-exporter-prometheus = "0.14.0"
 nostr-sdk = "0.30.0"
-ractor = "0.9.8"
+ractor = "0.10.3"
 regex = "1.10.4"
 reqwest = "0.12.4"
 serde = { version = "1.0.203", features = ["derive"] }
