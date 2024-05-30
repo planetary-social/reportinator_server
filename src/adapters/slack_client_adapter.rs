@@ -43,7 +43,7 @@ impl SlackClientAdapter {
 
     async fn try_njump(&self, pubkey: PublicKey) -> Result<String> {
         let maybe_reporter_nip05 =
-            call_t!(self.nostr_actor, SupervisorMessage::GetNip05, 50, pubkey)?;
+            call_t!(self.nostr_actor, SupervisorMessage::GetNip05, 100, pubkey)?;
 
         Ok(maybe_reporter_nip05
             .as_ref()

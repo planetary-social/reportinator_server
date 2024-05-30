@@ -180,7 +180,7 @@ impl ServiceManager {
             loop {
                 tokio::select! {
                     _ = token_clone.cancelled() => {
-                        debug!("ServiceManager is being dropped, cancelling all tasks");
+                        debug!("Cleaning up. Cancelling all tasks");
                         for actor in &actors {
                             debug!("Stopping actor");
                             actor.stop(Some("ServiceManager is being dropped".to_string()));
@@ -202,7 +202,7 @@ impl ServiceManager {
 impl Drop for ServiceManager {
     fn drop(&mut self) {
         if !self.token.is_cancelled() {
-            debug!("ServiceManager is being dropped, cancelling all tasks");
+            debug!("ServiceManager is being dropped");
             self.token.cancel();
         }
     }

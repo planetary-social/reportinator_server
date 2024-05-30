@@ -2,7 +2,7 @@ use super::app_errors::AppError;
 use super::WebAppState;
 use crate::actors::messages::SupervisorMessage;
 use crate::domain_objects::{ModerationCategory, ReportRequest, ReportTarget};
-use anyhow::{anyhow, Context, Result};
+use anyhow::{anyhow, bail, Context, Result};
 use axum::{extract::State, routing::post, Extension, Router};
 use nostr_sdk::prelude::*;
 use ractor::{call_t, cast, ActorRef};
@@ -80,13 +80,26 @@ async fn slack_message(
     slack_username: String,
 ) -> Result<String, AppError> {
     let reporter_nip05_markdown =
-        try_njump(message_dispatcher.clone(), report_request.reporter_pubkey()).await?;
+        match try_njump(message_dispatcher.clone(), report_request.reporter_pubkey()).await {
+            Ok(nip05) => nip05,
+            Err(e) => {
+                info!("Failed to get nip05 link for reporter: {}", e);
+                format!("`{}`", report_request.reporter_pubkey())
+            }
+        };
 
-    let reported_nip05_markdown = try_njump(
+    let reported_nip05_markdown = match try_njump(
         message_dispatcher.clone(),
         &report_request.target().pubkey(),
     )
-    .await?;
+    .await
+    {
+        Ok(nip05) => nip05,
+        Err(e) => {
+            info!("Failed to get nip05 link for reported: {}", e);
+            format!("`{}`", report_request.target().pubkey())
+        }
+    };
 
     if let Some(moderated_report) = report_request.report(maybe_category.as_ref())? {
         let report_id = moderated_report.id();
@@ -235,8 +248,17 @@ async fn try_njump(
     message_dispatcher: ActorRef<SupervisorMessage>,
     pubkey: &PublicKey,
 ) -> Result<String> {
-    let maybe_reporter_nip05 =
-        call_t!(message_dispatcher, SupervisorMessage::GetNip05, 50, *pubkey)?;
+    let maybe_reporter_nip05 = match call_t!(
+        message_dispatcher,
+        SupervisorMessage::GetNip05,
+        100,
+        *pubkey
+    ) {
+        Ok(nip05) => nip05,
+        Err(e) => {
+            bail!("Failed to get nip05 link {}", e);
+        }
+    };
 
     Ok(maybe_reporter_nip05
         .as_ref()

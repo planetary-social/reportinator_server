@@ -152,6 +152,7 @@ impl<T: NostrPort> Actor for RelayEventDispatcher<T> {
                 subscriber.subscribe_to_port(&state.event_received_output_port);
             }
             RelayEventDispatcherMessage::EventReceived(event) => {
+                info!("Event received: {}", event.id());
                 state.event_received_output_port.send(event);
                 counter!("event_received").increment(1);
             }

@@ -110,21 +110,32 @@ where
     ) -> Result<(), ActorProcessingErr> {
         match message {
             Self::Msg::Publish(report) => {
-                cast!(
+                if let Err(e) = cast!(
                     event_dispatcher,
                     RelayEventDispatcherMessage::Publish(report)
-                )?;
+                ) {
+                    error!("Failed to publish report: {}", e);
+                }
             }
             Self::Msg::GetNip05(request, reply_port) => {
-                let result = call_t!(
+                let result = match call_t!(
                     event_dispatcher,
                     RelayEventDispatcherMessage::GetNip05,
-                    1000,
+                    100,
                     request
-                )?;
+                ) {
+                    Ok(Some(nip05)) => Some(nip05),
+                    Ok(None) => None,
+                    Err(e) => {
+                        error!("Failed to get nip05: {}", e);
+                        None
+                    }
+                };
 
                 if !reply_port.is_closed() {
-                    reply_port.send(result)?;
+                    if let Err(e) = reply_port.send(result) {
+                        error!("Failed to send reply: {}", e);
+                    }
                 }
             }
         }

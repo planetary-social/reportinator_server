@@ -50,24 +50,21 @@ impl NostrPort for NostrService {
 
     async fn get_nip05(&self, public_key: PublicKey) -> Option<String> {
         let Some(metadata) = self.client.metadata(public_key).await.ok() else {
-            error!("Failed to get metadata for public key: {:?}", public_key);
+            error!("Failed to get metadata for public key: {}", public_key);
             return None;
         };
 
         if let Some(nip05_value) = metadata.nip05 {
             let Ok(()) = nip05::verify(&public_key, &nip05_value, None).await else {
-                error!("Failed to verify Nip05 for public key: {:?}", public_key);
+                error!("Failed to verify Nip05 for public key: {}", public_key);
                 return None;
             };
 
-            info!(
-                "Nip05 for public key: {:?} is: {:?}",
-                public_key, nip05_value
-            );
+            info!("Nip05 for public key: {} is: {}", public_key, nip05_value);
             return Some(nip05_value);
         }
 
-        info!("No Nip05 found for public key: {:?}", public_key);
+        info!("No Nip05 found for public key: {}", public_key);
         None
     }
 

@@ -46,7 +46,11 @@ impl TryFrom<Event> for GiftWrappedReportRequest {
         if event.kind == Kind::GiftWrap {
             Ok(GiftWrappedReportRequest::new(event))
         } else {
-            bail!("Event kind is not 1059")
+            bail!(
+                "Event kind is not 1059. id:{} kind:{}",
+                event.id,
+                event.kind
+            )
         }
     }
 }
