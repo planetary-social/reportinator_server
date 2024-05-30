@@ -5,6 +5,7 @@ use anyhow::Result;
 use hyper_rustls::HttpsConnector;
 use hyper_util::client::legacy::connect::HttpConnector;
 use nostr_sdk::prelude::PublicKey;
+use nostr_sdk::ToBech32;
 use ractor::{call_t, ActorRef};
 use slack_morphism::prelude::*;
 use std::env;
@@ -41,6 +42,8 @@ impl SlackClientAdapter {
         Ok(())
     }
 
+    // This fn is currently duplicated and lives too in the http client adapter.
+    // It should be moved to a shared place at some point
     async fn try_njump(&self, pubkey: PublicKey) -> Result<String> {
         let maybe_reporter_nip05 =
             call_t!(self.nostr_actor, SupervisorMessage::GetNip05, 100, pubkey)?;
@@ -48,7 +51,10 @@ impl SlackClientAdapter {
         Ok(maybe_reporter_nip05
             .as_ref()
             .map(|nip05| format!("https://njump.me/{}", nip05))
-            .unwrap_or(format!("`{}`", pubkey)))
+            .unwrap_or(format!(
+                "`{}`",
+                pubkey.to_bech32().unwrap_or(pubkey.to_string())
+            )))
     }
 }
 

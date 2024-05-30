@@ -1,3 +1,5 @@
+/// This module contains the SlackWriter actor, which is responsible for knowing
+/// how to write to slack and can fetch info from Nostr to create its messages
 use super::messages::SupervisorMessage;
 use crate::actors::messages::SlackWriterMessage;
 use crate::domain_objects::{ReportRequest, ReportTarget};
@@ -48,6 +50,7 @@ where
         state: &mut Self::State,
     ) -> Result<(), ActorProcessingErr> {
         match message {
+            // TODO: We should break this dependency on ReportRequest
             Self::Msg::Write(report_request) => {
                 if let ReportTarget::Event(_) = report_request.target() {
                     info!("Ignoring event report request for slack writer");

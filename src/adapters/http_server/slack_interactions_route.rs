@@ -263,7 +263,10 @@ async fn try_njump(
     Ok(maybe_reporter_nip05
         .as_ref()
         .map(|nip05| format!("https://njump.me/{}", nip05))
-        .unwrap_or(format!("`{}`", pubkey)))
+        .unwrap_or(format!(
+            "`{}`",
+            pubkey.to_bech32().unwrap_or(pubkey.to_string())
+        )))
 }
 
 fn parse_slack_action(
