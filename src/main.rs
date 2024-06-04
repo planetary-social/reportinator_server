@@ -1,11 +1,23 @@
 mod actors;
 mod adapters;
+mod config;
+
+#[cfg(test)]
+mod tests {
+    #[test]
+    fn test() {
+        todo!()
+    }
+}
 mod domain_objects;
 mod service_manager;
 
-use crate::actors::Supervisor;
-use crate::adapters::{GooglePublisher, HttpServer, NostrService, SlackClientAdapterBuilder};
-use crate::service_manager::ServiceManager;
+use crate::{
+    actors::Supervisor,
+    adapters::{GooglePublisher, HttpServer, NostrService, SlackClientAdapterBuilder},
+    config::Config,
+    service_manager::ServiceManager,
+};
 use actors::{NostrPort, PubsubPort, SlackClientPortBuilder};
 use anyhow::{Context, Result};
 use nostr_sdk::prelude::*;
@@ -15,6 +27,8 @@ use tracing_subscriber::{fmt, prelude::*, EnvFilter};
 
 #[tokio::main]
 async fn main() -> Result<()> {
+    let config = &Config::new("config")?;
+
     tracing_subscriber::registry()
         .with(fmt::layer())
         .with(EnvFilter::from_default_env())
