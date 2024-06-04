@@ -12,6 +12,7 @@ mod tests {
 mod domain_objects;
 mod service_manager;
 
+use crate::config::Configurable;
 use crate::{
     actors::Supervisor,
     adapters::{GooglePublisher, HttpServer, NostrService, SlackClientAdapterBuilder},
@@ -21,9 +22,25 @@ use crate::{
 use actors::{NostrPort, PubsubPort, SlackClientPortBuilder};
 use anyhow::{Context, Result};
 use nostr_sdk::prelude::*;
+use serde::Deserialize;
 use std::env;
 use tracing::info;
 use tracing_subscriber::{fmt, prelude::*, EnvFilter};
+
+// =============================================
+// TODO: Put this in its own module or wherever it makes sense
+#[derive(Deserialize)]
+struct ReportinatorConfig {
+    pub keys: String,
+}
+
+impl Configurable for ReportinatorConfig {
+    fn key() -> &'static str {
+        "reportinator"
+    }
+}
+
+// =============================================
 
 #[tokio::main]
 async fn main() -> Result<()> {
@@ -34,12 +51,10 @@ async fn main() -> Result<()> {
         .with(EnvFilter::from_default_env())
         .init();
 
-    let Ok(reportinator_secret) = env::var("REPORTINATOR_SECRET") else {
-        return Err(anyhow::anyhow!("REPORTINATOR_SECRET env variable not set"));
-    };
-
-    let reportinator_keys =
-        Keys::parse(reportinator_secret).context("Error creating keys from secret")?;
+    // NOTE: This gets whole config object and field at same time, but usually
+    //   I would parse config once and each 'object/actor/etc' would hold on to it.
+    let reportinator_keys = Keys::parse(config.get::<ReportinatorConfig>()?.keys)
+        .context("Error creating keys from secret")?;
     let reportinator_public_key = reportinator_keys.public_key();
     info!(
         "Reportinator public key: {}",
