@@ -12,7 +12,7 @@ mod tests {
 mod domain_objects;
 mod service_manager;
 
-use crate::config::Configurable;
+use crate::config::{Configurable, ReportinatorConfig};
 use crate::{
     actors::Supervisor,
     adapters::{GooglePublisher, HttpServer, NostrService, SlackClientAdapterBuilder},
@@ -27,21 +27,6 @@ use std::env;
 use tracing::info;
 use tracing_subscriber::{fmt, prelude::*, EnvFilter};
 
-// =============================================
-// TODO: Put this in its own module or wherever it makes sense
-#[derive(Deserialize)]
-struct ReportinatorConfig {
-    pub keys: String,
-}
-
-impl Configurable for ReportinatorConfig {
-    fn key() -> &'static str {
-        "reportinator"
-    }
-}
-
-// =============================================
-
 #[tokio::main]
 async fn main() -> Result<()> {
     let config = &Config::new("config")?;
@@ -51,11 +36,9 @@ async fn main() -> Result<()> {
         .with(EnvFilter::from_default_env())
         .init();
 
-    // NOTE: This gets whole config object and field at same time, but usually
-    //   I would parse config once and each 'object/actor/etc' would hold on to it.
-    let reportinator_keys = Keys::parse(config.get::<ReportinatorConfig>()?.keys)
-        .context("Error creating keys from secret")?;
-    let reportinator_public_key = reportinator_keys.public_key();
+    let app_config: ReportinatorConfig = config.get()?;
+
+    let reportinator_public_key = app_config.keys.public_key();
     info!(
         "Reportinator public key: {}",
         reportinator_public_key.to_string()
@@ -77,7 +60,7 @@ async fn main() -> Result<()> {
         nostr_subscriber,
         google_publisher,
         slack_writer_builder,
-        reportinator_keys,
+        app_config.keys,
     )
     .await
 }

@@ -1,3 +1,6 @@
+mod reportinator;
+pub use reportinator::Config as ReportinatorConfig;
+
 use anyhow::{Context, Result};
 use config_rs::{Config as ConfigTree, Environment, File};
 use serde::de::DeserializeOwned;
