@@ -2,7 +2,7 @@ use crate::config::Configurable;
 use nostr_sdk::Keys;
 use serde::{de, Deserialize, Deserializer};
 
-#[derive(Deserialize)]
+#[derive(Debug, Clone, Deserialize)]
 pub struct Config {
     #[serde(deserialize_with = "parse_keys")]
     pub keys: Keys,

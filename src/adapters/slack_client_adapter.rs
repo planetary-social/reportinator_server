@@ -1,5 +1,6 @@
 use crate::actors::messages::SupervisorMessage;
 use crate::actors::{SlackClientPort, SlackClientPortBuilder};
+use crate::config::Configurable;
 use crate::domain_objects::{ModerationCategory, ReportRequest};
 use anyhow::Result;
 use hyper_rustls::HttpsConnector;
@@ -7,12 +8,25 @@ use hyper_util::client::legacy::connect::HttpConnector;
 use nostr_sdk::prelude::PublicKey;
 use nostr_sdk::ToBech32;
 use ractor::{call_t, ActorRef};
+use serde::{Deserialize, Deserializer};
 use slack_morphism::prelude::*;
-use std::env;
 use tracing::info;
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct Config {
+    pub token: SlackApiToken,
+    pub channel_id: SlackChannelId,
+}
+
+impl Configurable for Config {
+    fn key() -> &'static str {
+        "slack"
+    }
+}
 
 #[derive(Clone)]
 pub struct SlackClientAdapter {
+    config: Config,
     client: SlackClient<SlackClientHyperConnector<HttpsConnector<HttpConnector>>>,
     nostr_actor: ActorRef<SupervisorMessage>,
 }
@@ -21,6 +35,7 @@ pub struct SlackClientAdapter {
 pub struct SlackClientAdapterBuilder {}
 
 impl SlackClientPortBuilder for SlackClientAdapterBuilder {
+    // TODO: We would need to update trait to allow passing config here
     fn build(&self, nostr_actor: ActorRef<SupervisorMessage>) -> Result<impl SlackClientPort> {
         let client = SlackClient::new(SlackClientHyperConnector::new()?);
         Ok(SlackClientAdapter {
@@ -31,10 +46,9 @@ impl SlackClientPortBuilder for SlackClientAdapterBuilder {
 }
 
 impl SlackClientAdapter {
+    // TODO: This is infallible now
     async fn post_message(&self, message: SlackApiChatPostMessageRequest) -> Result<()> {
-        let slack_token = env::var("SLACK_TOKEN")?;
-        let token: SlackApiToken = SlackApiToken::new(slack_token.into());
-        let session = self.client.open_session(&token);
+        let session = self.client.open_session(&self.config.token);
 
         let post_chat_resp = session.chat_post_message(&message).await;
         info!("post chat resp: {:#?}", &post_chat_resp);
@@ -85,9 +99,10 @@ impl SlackClientPort for SlackClientAdapter {
             reporter_pubkey_or_nip05_link,
         );
 
-        let channel_id = env::var("SLACK_CHANNEL_ID")?;
-        let message_req =
-            SlackApiChatPostMessageRequest::new(channel_id.into(), message.render_template());
+        let message_req = SlackApiChatPostMessageRequest::new(
+            self.config.channel_id.clone(),
+            message.render_template(),
+        );
 
         self.post_message(message_req).await
     }
