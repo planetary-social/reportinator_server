@@ -2,6 +2,7 @@
 /// how to write to slack and can fetch info from Nostr to create its messages
 use super::messages::SupervisorMessage;
 use crate::actors::messages::SlackWriterMessage;
+use crate::adapters::slack_client_adapter::Config as SlackConfig;
 use crate::domain_objects::{ReportRequest, ReportTarget};
 use anyhow::Result;
 use metrics::counter;
@@ -153,7 +154,11 @@ mod tests {
 }
 
 pub trait SlackClientPortBuilder: Send + Sync + 'static {
-    fn build(&self, nostr_actor: ActorRef<SupervisorMessage>) -> Result<impl SlackClientPort>;
+    fn build(
+        &self,
+        config: SlackConfig,
+        nostr_actor: ActorRef<SupervisorMessage>,
+    ) -> Result<impl SlackClientPort>;
 }
 
 #[ractor::async_trait]

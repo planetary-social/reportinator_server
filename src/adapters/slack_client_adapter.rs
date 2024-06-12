@@ -35,10 +35,14 @@ pub struct SlackClientAdapter {
 pub struct SlackClientAdapterBuilder {}
 
 impl SlackClientPortBuilder for SlackClientAdapterBuilder {
-    // TODO: We would need to update trait to allow passing config here
-    fn build(&self, nostr_actor: ActorRef<SupervisorMessage>) -> Result<impl SlackClientPort> {
+    fn build(
+        &self,
+        config: Config,
+        nostr_actor: ActorRef<SupervisorMessage>,
+    ) -> Result<impl SlackClientPort> {
         let client = SlackClient::new(SlackClientHyperConnector::new()?);
         Ok(SlackClientAdapter {
+            config,
             client,
             nostr_actor,
         })
@@ -46,14 +50,11 @@ impl SlackClientPortBuilder for SlackClientAdapterBuilder {
 }
 
 impl SlackClientAdapter {
-    // TODO: This is infallible now
-    async fn post_message(&self, message: SlackApiChatPostMessageRequest) -> Result<()> {
+    async fn post_message(&self, message: SlackApiChatPostMessageRequest) {
         let session = self.client.open_session(&self.config.token);
 
         let post_chat_resp = session.chat_post_message(&message).await;
         info!("post chat resp: {:#?}", &post_chat_resp);
-
-        Ok(())
     }
 
     // This fn is currently duplicated and lives too in the http client adapter.
@@ -104,7 +105,9 @@ impl SlackClientPort for SlackClientAdapter {
             message.render_template(),
         );
 
-        self.post_message(message_req).await
+        self.post_message(message_req).await;
+
+        Ok(())
     }
 }
 
@@ -220,5 +223,12 @@ impl<'a> SlackMessageTemplate for PubkeyReportRequestMessage<'a> {
 impl From<ModerationCategory> for SlackBlockButtonElement {
     fn from(category: ModerationCategory) -> Self {
         SlackBlockButtonElement::new(category.to_string().into(), pt!(category.to_string()))
+    }
+}
+
+impl TryFrom<&crate::config::Config> for Config {
+    type Error = anyhow::Error;
+    fn try_from(value: &crate::config::Config) -> std::result::Result<Self, Self::Error> {
+        value.get()
     }
 }

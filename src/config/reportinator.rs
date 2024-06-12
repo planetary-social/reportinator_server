@@ -21,3 +21,10 @@ where
     let s = String::deserialize(deserializer)?;
     Keys::parse(s).map_err(de::Error::custom)
 }
+
+impl TryFrom<&crate::config::Config> for Config {
+    type Error = anyhow::Error;
+    fn try_from(value: &crate::config::Config) -> Result<Self, Self::Error> {
+        value.get()
+    }
+}

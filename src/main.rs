@@ -29,14 +29,14 @@ use tracing_subscriber::{fmt, prelude::*, EnvFilter};
 
 #[tokio::main]
 async fn main() -> Result<()> {
-    let config = &Config::new("config")?;
+    let config = Config::new("config")?;
 
     tracing_subscriber::registry()
         .with(fmt::layer())
         .with(EnvFilter::from_default_env())
         .init();
 
-    let app_config: ReportinatorConfig = config.get()?;
+    let app_config = config.get::<ReportinatorConfig>()?;
 
     let reportinator_public_key = app_config.keys.public_key();
     info!(
@@ -57,6 +57,7 @@ async fn main() -> Result<()> {
     let slack_writer_builder = SlackClientAdapterBuilder::default();
 
     start_server(
+        config,
         nostr_subscriber,
         google_publisher,
         slack_writer_builder,
@@ -103,6 +104,7 @@ async fn main() -> Result<()> {
 ///                                                     │                          Reportinator Server                          │
 ///                                                     └───────────────────────────────────────────────────────────────────────┘
 async fn start_server(
+    config: Config,
     nostr_subscriber: impl NostrPort,
     google_publisher: impl PubsubPort,
     slack_writer_builder: impl SlackClientPortBuilder,
@@ -113,7 +115,7 @@ async fn start_server(
     // Spawn actors and wire them together
     let supervisor = manager
         .spawn_actor(
-            Supervisor::default(),
+            Supervisor::new(config),
             (
                 nostr_subscriber,
                 google_publisher,

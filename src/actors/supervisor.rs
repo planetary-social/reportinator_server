@@ -3,6 +3,7 @@ use crate::actors::{
     EventEnqueuer, GiftUnwrapper, NostrPort, PubsubPort, RelayEventDispatcher,
     SlackClientPortBuilder, SlackWriter,
 };
+use crate::config::Config;
 use anyhow::Result;
 use metrics::counter;
 use nostr_sdk::prelude::*;
@@ -10,16 +11,14 @@ use ractor::{call_t, cast, Actor, ActorProcessingErr, ActorRef, SupervisionEvent
 use tracing::error;
 
 pub struct Supervisor<T, U, V> {
+    config: Config,
     _phantom: std::marker::PhantomData<(T, U, V)>,
 }
-impl<T, U, V> Default for Supervisor<T, U, V>
-where
-    T: NostrPort,
-    U: PubsubPort,
-    V: SlackClientPortBuilder,
-{
-    fn default() -> Self {
+
+impl<T, U, V> Supervisor<T, U, V> {
+    pub fn new(config: Config) -> Self {
         Self {
+            config,
             _phantom: std::marker::PhantomData,
         }
     }
@@ -76,7 +75,8 @@ where
         )
         .await?;
 
-        let slack_client_port = slack_writer_builder.build(myself.clone())?;
+        let slack_client_port =
+            slack_writer_builder.build((&self.config).try_into()?, myself.clone())?;
 
         let (slack_writer, _slack_writer_handle) = Actor::spawn_linked(
             Some("slack_writer".to_string()),
