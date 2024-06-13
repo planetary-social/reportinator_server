@@ -10,6 +10,7 @@ default-run = "reportinator_server"
 anyhow = "1.0.86"
 axum = "0.7.5"
 clap = "4.5.4"
+config_rs = { version = "0.14", package = "config", features = ["yaml"] }
 env_logger = "0.11.3"
 futures = "0.3.30"
 gcloud-sdk = { version = "0.24.6", features = ["google-pubsub-v1"] }

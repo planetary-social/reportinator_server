@@ -1,32 +1,44 @@
 mod actors;
 mod adapters;
+mod config;
+
+#[cfg(test)]
+mod tests {
+    #[test]
+    fn test() {
+        todo!()
+    }
+}
 mod domain_objects;
 mod service_manager;
 
-use crate::actors::Supervisor;
-use crate::adapters::{GooglePublisher, HttpServer, NostrService, SlackClientAdapterBuilder};
-use crate::service_manager::ServiceManager;
+use crate::config::{Configurable, ReportinatorConfig};
+use crate::{
+    actors::Supervisor,
+    adapters::{GooglePublisher, HttpServer, NostrService, SlackClientAdapterBuilder},
+    config::Config,
+    service_manager::ServiceManager,
+};
 use actors::{NostrPort, PubsubPort, SlackClientPortBuilder};
 use anyhow::{Context, Result};
 use nostr_sdk::prelude::*;
+use serde::Deserialize;
 use std::env;
 use tracing::info;
 use tracing_subscriber::{fmt, prelude::*, EnvFilter};
 
 #[tokio::main]
 async fn main() -> Result<()> {
+    let config = &Config::new("config")?;
+
     tracing_subscriber::registry()
         .with(fmt::layer())
         .with(EnvFilter::from_default_env())
         .init();
 
-    let Ok(reportinator_secret) = env::var("REPORTINATOR_SECRET") else {
-        return Err(anyhow::anyhow!("REPORTINATOR_SECRET env variable not set"));
-    };
+    let app_config: ReportinatorConfig = config.get()?;
 
-    let reportinator_keys =
-        Keys::parse(reportinator_secret).context("Error creating keys from secret")?;
-    let reportinator_public_key = reportinator_keys.public_key();
+    let reportinator_public_key = app_config.keys.public_key();
     info!(
         "Reportinator public key: {}",
         reportinator_public_key.to_string()
@@ -48,7 +60,7 @@ async fn main() -> Result<()> {
         nostr_subscriber,
         google_publisher,
         slack_writer_builder,
-        reportinator_keys,
+        app_config.keys,
     )
     .await
 }
