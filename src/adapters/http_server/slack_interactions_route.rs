@@ -1,11 +1,12 @@
 use super::app_errors::AppError;
 use super::WebAppState;
 use crate::actors::messages::SupervisorMessage;
+use crate::adapters::njump_or_pubkey;
 use crate::domain_objects::{ModerationCategory, ReportRequest, ReportTarget};
-use anyhow::{anyhow, bail, Context, Result};
+use anyhow::{anyhow, Context, Result};
 use axum::{extract::State, routing::post, Extension, Router};
 use nostr_sdk::prelude::*;
-use ractor::{call_t, cast, ActorRef};
+use ractor::{cast, ActorRef};
 use reqwest::Client as ReqwestClient;
 use serde_json::{json, Value};
 use slack_morphism::prelude::*;
@@ -79,27 +80,14 @@ async fn slack_message(
     maybe_category: Option<ModerationCategory>,
     slack_username: String,
 ) -> Result<String, AppError> {
-    let reporter_nip05_markdown =
-        match try_njump(message_dispatcher.clone(), report_request.reporter_pubkey()).await {
-            Ok(nip05) => nip05,
-            Err(e) => {
-                info!("Failed to get nip05 link for reporter: {}", e);
-                format!("`{}`", report_request.reporter_pubkey())
-            }
-        };
-
-    let reported_nip05_markdown = match try_njump(
+    let reporter_nip05_markdown = njump_or_pubkey(
         message_dispatcher.clone(),
-        &report_request.target().pubkey(),
+        *report_request.reporter_pubkey(),
     )
-    .await
-    {
-        Ok(nip05) => nip05,
-        Err(e) => {
-            info!("Failed to get nip05 link for reported: {}", e);
-            format!("`{}`", report_request.target().pubkey())
-        }
-    };
+    .await;
+
+    let reported_nip05_markdown =
+        njump_or_pubkey(message_dispatcher.clone(), report_request.target().pubkey()).await;
 
     if let Some(moderated_report) = report_request.report(maybe_category.as_ref())? {
         let report_id = moderated_report.id();
@@ -242,31 +230,6 @@ fn slack_skipped_message(
         .join("\n");
 
     trimmed_string
-}
-
-async fn try_njump(
-    message_dispatcher: ActorRef<SupervisorMessage>,
-    pubkey: &PublicKey,
-) -> Result<String> {
-    let maybe_reporter_nip05 = match call_t!(
-        message_dispatcher,
-        SupervisorMessage::GetNip05,
-        100,
-        *pubkey
-    ) {
-        Ok(nip05) => nip05,
-        Err(e) => {
-            bail!("Failed to get nip05 link {}", e);
-        }
-    };
-
-    Ok(maybe_reporter_nip05
-        .as_ref()
-        .map(|nip05| format!("https://njump.me/{}", nip05))
-        .unwrap_or(format!(
-            "`{}`",
-            pubkey.to_bech32().unwrap_or(pubkey.to_string())
-        )))
 }
 
 fn parse_slack_action(
@@ -451,8 +414,8 @@ mod tests {
         .unwrap();
 
         let slack_actions_event = create_slack_actions_event(
-            &slack_username,
-            &category_name,
+            slack_username,
+            category_name,
             &reporter_pubkey,
             &reporter_text,
             &reported_event,
@@ -487,8 +450,8 @@ mod tests {
             .unwrap();
 
         let slack_actions_event = create_slack_actions_event(
-            &slack_username,
-            &category_name,
+            slack_username,
+            category_name,
             &reporter_pubkey,
             &reporter_text,
             &reported_event,
