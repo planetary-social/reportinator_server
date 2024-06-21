@@ -1,6 +1,7 @@
 use crate::config::Configurable;
 use nostr_sdk::Keys;
 use serde::{de, Deserialize, Deserializer};
+use std::sync::OnceLock;
 
 #[derive(Debug, Clone, Deserialize)]
 pub struct Config {
@@ -22,9 +23,19 @@ where
     Keys::parse(s).map_err(de::Error::custom)
 }
 
-impl TryFrom<&crate::config::Config> for Config {
-    type Error = anyhow::Error;
-    fn try_from(value: &crate::config::Config) -> Result<Self, Self::Error> {
-        value.get()
-    }
+/*
+ * This is hopefully temporary. Generally its better to provide config
+ * via dependency injection, instead of having global state. Based on
+ * the current architecture though, there were a couple places where
+ * it was non-trivial to pass configuration to.
+ */
+static CONFIG: OnceLock<Config> = OnceLock::new();
+
+/// This will panic if config was not set.
+pub fn config<'a>() -> &'a Config {
+    CONFIG.get().unwrap()
+}
+
+pub fn set_config(config: Config) {
+    CONFIG.set(config).expect("Failed to set  config");
 }

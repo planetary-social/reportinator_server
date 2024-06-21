@@ -2,6 +2,7 @@ mod app_errors;
 mod router;
 mod slack_interactions_route;
 use crate::actors::messages::SupervisorMessage;
+use crate::config::Config;
 use anyhow::{Context, Result};
 use axum::Router;
 use handlebars::Handlebars;
@@ -23,10 +24,11 @@ pub struct WebAppState {
 pub struct HttpServer;
 impl HttpServer {
     pub async fn run(
-        cancellation_token: CancellationToken,
+        config: Config,
         event_dispatcher: ActorRef<SupervisorMessage>,
+        cancellation_token: CancellationToken,
     ) -> Result<()> {
-        let router = create_router(event_dispatcher)?;
+        let router = create_router(&config, event_dispatcher)?;
 
         start_http_server(router, cancellation_token).await
     }

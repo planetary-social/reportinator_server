@@ -1,28 +1,18 @@
 mod actors;
 mod adapters;
-mod config;
-
-#[cfg(test)]
-mod tests {
-    #[test]
-    fn test() {
-        todo!()
-    }
-}
 mod domain_objects;
 mod service_manager;
 
-use crate::config::{Configurable, ReportinatorConfig};
 use crate::{
     actors::Supervisor,
     adapters::{GooglePublisher, HttpServer, NostrService, SlackClientAdapterBuilder},
-    config::Config,
     service_manager::ServiceManager,
 };
 use actors::{NostrPort, PubsubPort, SlackClientPortBuilder};
 use anyhow::{Context, Result};
 use nostr_sdk::prelude::*;
-use serde::Deserialize;
+use reportinator_server::config::ReportinatorConfig;
+use reportinator_server::config::{self, Config};
 use std::env;
 use tracing::info;
 use tracing_subscriber::{fmt, prelude::*, EnvFilter};
@@ -37,6 +27,9 @@ async fn main() -> Result<()> {
         .init();
 
     let app_config = config.get::<ReportinatorConfig>()?;
+    // There are places that are non-trivial to pass app_config to,
+    //   so we will set a global here for the interim.
+    config::reportinator::set_config(app_config.clone());
 
     let reportinator_public_key = app_config.keys.public_key();
     info!(
@@ -115,7 +108,7 @@ async fn start_server(
     // Spawn actors and wire them together
     let supervisor = manager
         .spawn_actor(
-            Supervisor::new(config),
+            Supervisor::new(config.clone()),
             (
                 nostr_subscriber,
                 google_publisher,
@@ -125,7 +118,9 @@ async fn start_server(
         )
         .await?;
 
-    manager.spawn_service(|cancellation_token| HttpServer::run(cancellation_token, supervisor));
+    manager.spawn_service(|cancellation_token| {
+        HttpServer::run(config, supervisor, cancellation_token)
+    });
 
     manager
         .listen_stop_signals()

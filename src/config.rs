@@ -1,4 +1,4 @@
-mod reportinator;
+pub mod reportinator;
 pub use reportinator::Config as ReportinatorConfig;
 
 use anyhow::{Context, Result};

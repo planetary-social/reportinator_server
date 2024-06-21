@@ -8,7 +8,7 @@ use hyper_util::client::legacy::connect::HttpConnector;
 use nostr_sdk::prelude::PublicKey;
 use nostr_sdk::ToBech32;
 use ractor::{call_t, ActorRef};
-use serde::{Deserialize, Deserializer};
+use serde::Deserialize;
 use slack_morphism::prelude::*;
 use tracing::info;
 
@@ -223,12 +223,5 @@ impl<'a> SlackMessageTemplate for PubkeyReportRequestMessage<'a> {
 impl From<ModerationCategory> for SlackBlockButtonElement {
     fn from(category: ModerationCategory) -> Self {
         SlackBlockButtonElement::new(category.to_string().into(), pt!(category.to_string()))
-    }
-}
-
-impl TryFrom<&crate::config::Config> for Config {
-    type Error = anyhow::Error;
-    fn try_from(value: &crate::config::Config) -> std::result::Result<Self, Self::Error> {
-        value.get()
     }
 }

@@ -75,8 +75,7 @@ where
         )
         .await?;
 
-        let slack_client_port =
-            slack_writer_builder.build((&self.config).try_into()?, myself.clone())?;
+        let slack_client_port = slack_writer_builder.build(self.config.get()?, myself.clone())?;
 
         let (slack_writer, _slack_writer_handle) = Actor::spawn_linked(
             Some("slack_writer".to_string()),
@@ -164,6 +163,7 @@ where
             }
             SupervisionEvent::ActorStarted(_actor) => {}
             SupervisionEvent::ProcessGroupChanged(_group) => {}
+            _ => {}
         }
 
         Ok(())

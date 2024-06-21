@@ -1,6 +1,7 @@
 use super::slack_interactions_route::slack_interactions_route;
 use super::WebAppState;
 use crate::actors::messages::SupervisorMessage;
+use crate::config::Config;
 use anyhow::Result;
 use axum::{extract::State, http::HeaderMap, response::Html};
 use axum::{response::IntoResponse, routing::get, Router};
@@ -17,7 +18,10 @@ use tower_http::LatencyUnit;
 use tower_http::{timeout::TimeoutLayer, trace::DefaultOnFailure};
 use tracing::Level;
 
-pub fn create_router(message_dispatcher: ActorRef<SupervisorMessage>) -> Result<Router> {
+pub fn create_router(
+    config: &Config,
+    message_dispatcher: ActorRef<SupervisorMessage>,
+) -> Result<Router> {
     let web_app_state = create_web_app_state(message_dispatcher)?;
 
     let metrics_handle = setup_metrics()?;
@@ -34,7 +38,7 @@ pub fn create_router(message_dispatcher: ActorRef<SupervisorMessage>) -> Result<
     Ok(Router::new()
         // TODO: Move this one away to its own file too
         .route("/", get(serve_root_page))
-        .merge(slack_interactions_route()?)
+        .merge(slack_interactions_route(&config.get()?)?)
         .layer(tracing_layer)
         .layer(TimeoutLayer::new(Duration::from_secs(1)))
         .with_state(web_app_state)
