@@ -14,3 +14,4 @@ http:
   # when deployed.
   bind_addr: '0.0.0.0'
   bind_port: 3000
+  templates_dir: 'templates'

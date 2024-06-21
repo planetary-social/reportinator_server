@@ -1,7 +1,7 @@
 use super::slack_interactions_route::slack_interactions_route;
 use super::WebAppState;
 use crate::actors::messages::SupervisorMessage;
-use crate::config::Config;
+use crate::config::Config as ConfigTree;
 use anyhow::Result;
 use axum::{extract::State, http::HeaderMap, response::Html};
 use axum::{response::IntoResponse, routing::get, Router};
@@ -9,8 +9,9 @@ use handlebars::Handlebars;
 use metrics::describe_counter;
 use metrics_exporter_prometheus::PrometheusBuilder;
 use ractor::ActorRef;
+use reportinator_server::config::Configurable;
+use serde::Deserialize;
 use serde_json::json;
-use std::env;
 use std::sync::Arc;
 use std::time::Duration;
 use tower_http::trace::{DefaultMakeSpan, DefaultOnResponse, TraceLayer};
@@ -18,11 +19,22 @@ use tower_http::LatencyUnit;
 use tower_http::{timeout::TimeoutLayer, trace::DefaultOnFailure};
 use tracing::Level;
 
+#[derive(Debug, Clone, Deserialize)]
+pub struct Config {
+    pub templates_dir: String,
+}
+
+impl Configurable for Config {
+    fn key() -> &'static str {
+        "http"
+    }
+}
+
 pub fn create_router(
-    config: &Config,
+    config: &ConfigTree,
     message_dispatcher: ActorRef<SupervisorMessage>,
 ) -> Result<Router> {
-    let web_app_state = create_web_app_state(message_dispatcher)?;
+    let web_app_state = create_web_app_state(&config.get()?, message_dispatcher)?;
 
     let metrics_handle = setup_metrics()?;
 
@@ -45,11 +57,13 @@ pub fn create_router(
         .route("/metrics", get(|| async move { metrics_handle.render() })))
 }
 
-fn create_web_app_state(message_dispatcher: ActorRef<SupervisorMessage>) -> Result<WebAppState> {
-    let templates_dir = env::var("TEMPLATES_DIR").unwrap_or_else(|_| "/app/templates".to_string());
+fn create_web_app_state(
+    config: &Config,
+    message_dispatcher: ActorRef<SupervisorMessage>,
+) -> Result<WebAppState> {
     let mut hb = Handlebars::new();
 
-    hb.register_template_file("root", format!("{}/root.hbs", templates_dir))
+    hb.register_template_file("root", format!("{}/root.hbs", config.templates_dir))
         .map_err(|e| anyhow::anyhow!("Failed to load template: {}", e))?;
 
     Ok(WebAppState {
