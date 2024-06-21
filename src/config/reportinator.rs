@@ -7,6 +7,8 @@ use std::sync::OnceLock;
 pub struct Config {
     #[serde(deserialize_with = "parse_keys")]
     pub keys: Keys,
+    #[serde(deserialize_with = "parse_relays")]
+    pub relays: Vec<String>,
 }
 
 impl Configurable for Config {
@@ -21,6 +23,20 @@ where
 {
     let s = String::deserialize(deserializer)?;
     Keys::parse(s).map_err(de::Error::custom)
+}
+
+fn parse_relays<'de, D>(deserializer: D) -> Result<Vec<String>, D::Error>
+where
+    D: Deserializer<'de>,
+{
+    let s = String::deserialize(deserializer)?;
+
+    if s.trim().is_empty() {
+        return Err(anyhow::anyhow!("RELAY_ADDRESSES_CSV env variable is empty"))
+            .map_err(de::Error::custom);
+    }
+
+    Ok(s.split(',').map(|s| s.trim().to_string()).collect())
 }
 
 /*

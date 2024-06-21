@@ -13,7 +13,6 @@ use anyhow::{Context, Result};
 use nostr_sdk::prelude::*;
 use reportinator_server::config::ReportinatorConfig;
 use reportinator_server::config::{self, Config};
-use std::env;
 use tracing::info;
 use tracing_subscriber::{fmt, prelude::*, EnvFilter};
 
@@ -43,9 +42,9 @@ async fn main() -> Result<()> {
         .limit(0)
         .kind(Kind::GiftWrap)];
 
-    let relays = get_relays()?;
+    info!("Using relays: {:?}", app_config.relays);
 
-    let nostr_subscriber = NostrService::create(relays, gift_wrap_filter).await?;
+    let nostr_subscriber = NostrService::create(app_config.relays, gift_wrap_filter).await?;
     let google_publisher = GooglePublisher::create().await?;
     let slack_writer_builder = SlackClientAdapterBuilder::default();
 
@@ -126,23 +125,4 @@ async fn start_server(
         .listen_stop_signals()
         .await
         .context("Failed to spawn actors")
-}
-
-fn get_relays() -> Result<Vec<String>> {
-    let Ok(value) = env::var("RELAY_ADDRESSES_CSV") else {
-        return Err(anyhow::anyhow!("RELAY_ADDRESSES_CSV env variable not set"));
-    };
-
-    if value.trim().is_empty() {
-        return Err(anyhow::anyhow!("RELAY_ADDRESSES_CSV env variable is empty"));
-    }
-
-    let relays = value
-        .trim()
-        .split(',')
-        .map(|s| s.trim().to_string())
-        .collect();
-
-    info!("Using relays: {:?}", relays);
-    Ok(relays)
 }

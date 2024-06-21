@@ -163,7 +163,6 @@ where
             }
             SupervisionEvent::ActorStarted(_actor) => {}
             SupervisionEvent::ProcessGroupChanged(_group) => {}
-            _ => {}
         }
 
         Ok(())
