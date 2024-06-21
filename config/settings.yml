@@ -7,3 +7,10 @@ slack:
   token: '<NOT_SET>'
   channel_id: '<NOT_SET>'
   signing_secret: '<NOT_SET>'
+
+http:
+  # Best practice would probably say
+  # default this to 127.0.0.1, and override
+  # when deployed.
+  bind_addr: '0.0.0.0'
+  bind_port: 3000
