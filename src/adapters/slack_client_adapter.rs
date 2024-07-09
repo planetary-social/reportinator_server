@@ -37,8 +37,7 @@ impl SlackClientAdapter {
         let token: SlackApiToken = SlackApiToken::new(slack_token.into());
         let session = self.client.open_session(&token);
 
-        let post_chat_resp = session.chat_post_message(&message).await;
-        info!("post chat resp: {:#?}", &post_chat_resp);
+        session.chat_post_message(&message).await?;
 
         Ok(())
     }

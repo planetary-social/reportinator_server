@@ -155,6 +155,19 @@ fn slack_processed_message(
         ),
     };
 
+    let reason = match report_request.reporter_text() {
+        Some(text) => format!(
+            r#"
+            *Reporter Reason:*
+            ```
+            {}
+            ```
+            "#,
+            text
+        ),
+        None => "".to_string(),
+    };
+
     let message = format!(
         r#"
         🚩 *New Moderation Report* 🚩
@@ -164,20 +177,11 @@ fn slack_processed_message(
         *Report Id:* `{}`
 
         *Requested By*: {}
-        *Reporter Reason:*
-
-        ```
         {}
-        ```
 
         {}
         "#,
-        slack_username,
-        category,
-        report_id,
-        reporter_nip05_markdown,
-        report_request.reporter_text().unwrap_or(&"".to_string()),
-        target_message,
+        slack_username, category, report_id, reporter_nip05_markdown, reason, target_message,
     );
 
     let trimmed_string = message
@@ -215,6 +219,19 @@ fn slack_skipped_message(
         ),
     };
 
+    let reason = match report_request.reporter_text() {
+        Some(text) => format!(
+            r#"
+            *Reporter Reason:*
+            ```
+            {}
+            ```
+            "#,
+            text
+        ),
+        None => "".to_string(),
+    };
+
     let message = format!(
         r#"
         ⏭️ *Moderation Report Skipped* ⏭️
@@ -222,17 +239,11 @@ fn slack_skipped_message(
         *Report Skipped By:* {}
 
         *Requested By*: {}
-        *Reporter Reason:*
-        ```
         {}
-        ```
 
         {}
         "#,
-        slack_username,
-        reporter_nip05_markdown,
-        report_request.reporter_text().unwrap_or(&"".to_string()),
-        target_message,
+        slack_username, reporter_nip05_markdown, reason, target_message,
     );
 
     let trimmed_string = message
