@@ -7,8 +7,5 @@ pub use report_request::ReportTarget;
 
 pub mod as_gift_wrap;
 
-pub mod moderation_category;
-pub use moderation_category::ModerationCategory;
-
 pub mod moderated_report;
 pub use moderated_report::ModeratedReport;

@@ -206,17 +206,17 @@ dependencies = [
 
 [[package]]
 name = "async-wsocket"
-version = "0.4.0"
+version = "0.5.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5c38341e6ee670913fb9dc3aba40c22d616261da4dc0928326d3168ebf576fb0"
+checksum = "3445f8f330db8e5f3be7912f170f32e43fec90d995c71ced1ec3b8394b4a873c"
 dependencies = [
  "async-utility",
  "futures-util",
  "thiserror",
  "tokio",
- "tokio-rustls 0.25.0",
+ "tokio-rustls 0.26.0",
  "tokio-socks",
- "tokio-tungstenite",
+ "tokio-tungstenite 0.23.1",
  "url",
  "wasm-ws",
  "webpki-roots",
@@ -235,9 +235,9 @@ dependencies = [
 
 [[package]]
 name = "atomic-destructor"
-version = "0.1.1"
+version = "0.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4653a42bf04120a1d4e92452e006b4e3af4ab4afff8fb4af0f1bbb98418adf3e"
+checksum = "7d919cb60ba95c87ba42777e9e246c4e8d658057299b437b7512531ce0a09a23"
 dependencies = [
  "tracing",
 ]
@@ -1673,9 +1673,8 @@ dependencies = [
 
 [[package]]
 name = "nostr"
-version = "0.31.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ed4f065c7357937f9149fa6fb04c89c3041a8a01ca472b887baded59b65cfe2c"
+version = "0.32.0"
+source = "git+https://github.com/dcadenas/nostr.git?branch=add-malware-report-variant#749f580f8a3b2479df41e49a3c48e68de1c3244e"
 dependencies = [
  "aes",
  "base64 0.21.7",
@@ -1703,9 +1702,8 @@ dependencies = [
 
 [[package]]
 name = "nostr-database"
-version = "0.31.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a89506f743a5441695ab727794db41d8df1c1365ff96c25272985adf08f816b3"
+version = "0.32.0"
+source = "git+https://github.com/dcadenas/nostr.git?branch=add-malware-report-variant#749f580f8a3b2479df41e49a3c48e68de1c3244e"
 dependencies = [
  "async-trait",
  "lru",
@@ -1717,9 +1715,8 @@ dependencies = [
 
 [[package]]
 name = "nostr-relay-pool"
-version = "0.31.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f751acc8bbb1329718d673470c7c3a18cddd33963dd91b97bccc92037113d254"
+version = "0.32.0"
+source = "git+https://github.com/dcadenas/nostr.git?branch=add-malware-report-variant#749f580f8a3b2479df41e49a3c48e68de1c3244e"
 dependencies = [
  "async-utility",
  "async-wsocket",
@@ -1733,11 +1730,11 @@ dependencies = [
 
 [[package]]
 name = "nostr-sdk"
-version = "0.31.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "0e65cd9f4f26f3f8e10253c518aff9e61a9204f600dfe4c3c241b0230471c67f"
+version = "0.32.0"
+source = "git+https://github.com/dcadenas/nostr.git?branch=add-malware-report-variant#749f580f8a3b2479df41e49a3c48e68de1c3244e"
 dependencies = [
  "async-utility",
+ "atomic-destructor",
  "lnurl-pay",
  "nostr",
  "nostr-database",
@@ -1752,9 +1749,8 @@ dependencies = [
 
 [[package]]
 name = "nostr-signer"
-version = "0.31.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8be1878e91a0b4a95cfd8142349b6124b037b287375d76db9638ccc4b4cdf271"
+version = "0.32.0"
+source = "git+https://github.com/dcadenas/nostr.git?branch=add-malware-report-variant#749f580f8a3b2479df41e49a3c48e68de1c3244e"
 dependencies = [
  "async-utility",
  "nostr",
@@ -1766,9 +1762,8 @@ dependencies = [
 
 [[package]]
 name = "nostr-zapper"
-version = "0.31.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5558bb031cff46e5b580847f26617d516ded4c0f8fd27fb568ec875bcd8fb99c"
+version = "0.32.0"
+source = "git+https://github.com/dcadenas/nostr.git?branch=add-malware-report-variant#749f580f8a3b2479df41e49a3c48e68de1c3244e"
 dependencies = [
  "async-trait",
  "nostr",
@@ -1831,9 +1826,8 @@ dependencies = [
 
 [[package]]
 name = "nwc"
-version = "0.31.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "bbd88cc13a04ae41037c182489893c2f421ba0c12a028564ec339882e7f96d61"
+version = "0.32.0"
+source = "git+https://github.com/dcadenas/nostr.git?branch=add-malware-report-variant#749f580f8a3b2479df41e49a3c48e68de1c3244e"
 dependencies = [
  "async-utility",
  "nostr",
@@ -2507,6 +2501,20 @@ dependencies = [
 ]
 
 [[package]]
+name = "rustls"
+version = "0.23.10"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "05cff451f60db80f490f3c182b77c35260baace73209e9cdbbe526bfe3a4d402"
+dependencies = [
+ "once_cell",
+ "ring",
+ "rustls-pki-types",
+ "rustls-webpki 0.102.4",
+ "subtle",
+ "zeroize",
+]
+
+[[package]]
 name = "rustls-native-certs"
 version = "0.6.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2934,7 +2942,7 @@ dependencies = [
  "signal-hook-tokio",
  "tokio",
  "tokio-stream",
- "tokio-tungstenite",
+ "tokio-tungstenite 0.21.0",
  "tower",
  "tracing",
  "url",
@@ -3212,6 +3220,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "tokio-rustls"
+version = "0.26.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "0c7bc40d0e5a97695bb96e27995cd3a08538541b0a846f65bba7a359f36700d4"
+dependencies = [
+ "rustls 0.23.10",
+ "rustls-pki-types",
+ "tokio",
+]
+
+[[package]]
 name = "tokio-socks"
 version = "0.5.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3247,7 +3266,22 @@ dependencies = [
  "rustls-pki-types",
  "tokio",
  "tokio-rustls 0.25.0",
- "tungstenite",
+ "tungstenite 0.21.0",
+]
+
+[[package]]
+name = "tokio-tungstenite"
+version = "0.23.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "c6989540ced10490aaf14e6bad2e3d33728a2813310a0c71d1574304c49631cd"
+dependencies = [
+ "futures-util",
+ "log",
+ "rustls 0.23.10",
+ "rustls-pki-types",
+ "tokio",
+ "tokio-rustls 0.26.0",
+ "tungstenite 0.23.0",
  "webpki-roots",
 ]
 
@@ -3449,6 +3483,26 @@ dependencies = [
 ]
 
 [[package]]
+name = "tungstenite"
+version = "0.23.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "6e2e2ce1e47ed2994fd43b04c8f618008d4cabdd5ee34027cf14f9d918edd9c8"
+dependencies = [
+ "byteorder",
+ "bytes",
+ "data-encoding",
+ "http 1.1.0",
+ "httparse",
+ "log",
+ "rand",
+ "rustls 0.23.10",
+ "rustls-pki-types",
+ "sha1",
+ "thiserror",
+ "utf-8",
+]
+
+[[package]]
 name = "typenum"
 version = "1.17.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3644,9 +3698,9 @@ dependencies = [
 
 [[package]]
 name = "wasm-ws"
-version = "0.1.1"
+version = "0.2.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f5b3a482e27ff54809c0848629d9033179705c5ea2f58e26cf45dc77c34c4984"
+checksum = "688c5806d1b06b4f3d90d015e23364dc5d3af412ee64abba6dde8fdc01637e33"
 dependencies = [
  "async_io_stream",
  "futures",

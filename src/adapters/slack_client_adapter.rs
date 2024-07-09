@@ -1,9 +1,10 @@
 use crate::actors::messages::SupervisorMessage;
 use crate::actors::{SlackClientPort, SlackClientPortBuilder};
-use crate::domain_objects::{ModerationCategory, ReportRequest};
+use crate::domain_objects::ReportRequest;
 use anyhow::Result;
 use hyper_rustls::HttpsConnector;
 use hyper_util::client::legacy::connect::HttpConnector;
+use nostr_sdk::nips::nip56::Report;
 use nostr_sdk::prelude::PublicKey;
 use nostr_sdk::ToBech32;
 use ractor::{call_t, ActorRef};
@@ -121,49 +122,13 @@ impl<'a> PubkeyReportRequestMessage<'a> {
                     .with_style("danger".to_string())
                     .with_value(pubkey.clone())
             ),
-            some_into(
-                SlackBlockButtonElement::from(ModerationCategory::Hate).with_value(pubkey.clone())
-            ),
-            some_into(
-                SlackBlockButtonElement::from(ModerationCategory::HateThreatening)
-                    .with_value(pubkey.clone())
-            ),
-            some_into(
-                SlackBlockButtonElement::from(ModerationCategory::Harassment)
-                    .with_value(pubkey.clone())
-            ),
-            some_into(
-                SlackBlockButtonElement::from(ModerationCategory::HarassmentThreatening)
-                    .with_value(pubkey.clone())
-            ),
-            some_into(
-                SlackBlockButtonElement::from(ModerationCategory::SelfHarm)
-                    .with_value(pubkey.clone())
-            ),
-            some_into(
-                SlackBlockButtonElement::from(ModerationCategory::SelfHarmIntent)
-                    .with_value(pubkey.clone())
-            ),
-            some_into(
-                SlackBlockButtonElement::from(ModerationCategory::SelfHarmInstructions)
-                    .with_value(pubkey.clone())
-            ),
-            some_into(
-                SlackBlockButtonElement::from(ModerationCategory::Sexual)
-                    .with_value(pubkey.clone())
-            ),
-            some_into(
-                SlackBlockButtonElement::from(ModerationCategory::SexualMinors)
-                    .with_value(pubkey.clone())
-            ),
-            some_into(
-                SlackBlockButtonElement::from(ModerationCategory::Violence)
-                    .with_value(pubkey.clone())
-            ),
-            some_into(
-                SlackBlockButtonElement::from(ModerationCategory::ViolenceGraphic)
-                    .with_value(pubkey.clone())
-            )
+            some_into(report_to_button(Report::Nudity).with_value(pubkey.clone())),
+            some_into(report_to_button(Report::Malware).with_value(pubkey.clone())),
+            some_into(report_to_button(Report::Profanity).with_value(pubkey.clone())),
+            some_into(report_to_button(Report::Illegal).with_value(pubkey.clone())),
+            some_into(report_to_button(Report::Spam).with_value(pubkey.clone())),
+            some_into(report_to_button(Report::Impersonation).with_value(pubkey.clone())),
+            some_into(report_to_button(Report::Other).with_value(pubkey.clone()))
         ]
     }
 }
@@ -202,8 +167,6 @@ impl<'a> SlackMessageTemplate for PubkeyReportRequestMessage<'a> {
     }
 }
 
-impl From<ModerationCategory> for SlackBlockButtonElement {
-    fn from(category: ModerationCategory) -> Self {
-        SlackBlockButtonElement::new(category.to_string().into(), pt!(category.to_string()))
-    }
+fn report_to_button(report: Report) -> SlackBlockButtonElement {
+    SlackBlockButtonElement::new(report.to_string().into(), pt!(report.to_string()))
 }

@@ -1,4 +1,4 @@
-use super::{ModeratedReport, ModerationCategory};
+use super::ModeratedReport;
 use anyhow::Result;
 use nostr_sdk::prelude::*;
 use serde::{Deserialize, Serialize};
@@ -111,7 +111,7 @@ impl ReportRequest {
 
     pub fn report(
         &self,
-        maybe_moderation_category: Option<&ModerationCategory>,
+        maybe_moderation_category: Option<Report>,
     ) -> Result<Option<ModeratedReport>> {
         let Some(moderation_category) = maybe_moderation_category else {
             return Ok(None);
@@ -131,7 +131,7 @@ impl Display for ReportRequest {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::domain_objects::ModerationCategory;
+    use nostr::nips::nip56::Report;
     use serde_json::json;
     use std::str::FromStr;
 
@@ -186,8 +186,8 @@ mod tests {
         let (report_request, reported_target, _reporter_pubkey, _reporter_text) =
             setup_test_environment(true);
 
-        let category = ModerationCategory::from_str("hate").unwrap();
-        let maybe_report_event = report_request.report(Some(&category)).unwrap();
+        let category = Report::from_str("malware").unwrap();
+        let maybe_report_event = report_request.report(Some(category)).unwrap();
         let report_event = maybe_report_event.unwrap().event();
         let report_event_value = serde_json::to_value(report_event).unwrap();
 
@@ -196,17 +196,15 @@ mod tests {
             "2ddc92121b9e67172cc0d40b959c416173a3533636144ebc002b7719d8d1c4e3".to_string()
         );
         assert_eq!(report_event_value["kind"], 1984);
-        assert_eq!(report_event_value["content"], "Content that expresses, incites, or promotes hate based on race, gender, ethnicity, religion, nationality, sexual orientation, disability status, or caste. Hateful content aimed at non-protected groups (e.g., chess players) is harassment.");
+        assert_eq!(report_event_value["content"], "Virus, trojan horse, worm, robot, spyware, adware, back door, ransomware, rootkit, kidnapper, etc.");
 
         let ReportTarget::Event(reported_event) = reported_target else {
             panic!("Expected ReportedTarget::Event, got {:?}", reported_target);
         };
 
         let expected_tags = vec![
-            json!(["p", reported_event.pubkey, "other"]),
-            json!(["e", reported_event.id, "other"]),
-            json!(["L", "MOD"]),
-            json!(["l", "MOD>IH", "MOD"]),
+            json!(["p", reported_event.pubkey, "malware"]),
+            json!(["e", reported_event.id, "malware"]),
         ];
 
         for (i, expected_tag) in expected_tags.iter().enumerate() {
@@ -219,8 +217,8 @@ mod tests {
         let (report_request, reported_target, _reporter_pubkey, _reporter_text) =
             setup_test_environment(false);
 
-        let category = ModerationCategory::from_str("hate").unwrap();
-        let maybe_report_event = report_request.report(Some(&category)).unwrap();
+        let category = Report::from_str("other").unwrap();
+        let maybe_report_event = report_request.report(Some(category)).unwrap();
         let report_event = maybe_report_event.unwrap().event();
         let report_event_value = serde_json::to_value(report_event).unwrap();
 
@@ -229,7 +227,10 @@ mod tests {
             "2ddc92121b9e67172cc0d40b959c416173a3533636144ebc002b7719d8d1c4e3".to_string()
         );
         assert_eq!(report_event_value["kind"], 1984);
-        assert_eq!(report_event_value["content"], "Content that expresses, incites, or promotes hate based on race, gender, ethnicity, religion, nationality, sexual orientation, disability status, or caste. Hateful content aimed at non-protected groups (e.g., chess players) is harassment.");
+        assert_eq!(
+            report_event_value["content"],
+            "For reports that don't fit in the above categories."
+        );
 
         let ReportTarget::Pubkey(reported_pubkey) = reported_target else {
             panic!("Expected ReportedTarget::Pubkey, got {:?}", reported_target);
@@ -237,11 +238,7 @@ mod tests {
 
         assert!(matches!(reported_target, ReportTarget::Pubkey { .. }));
 
-        let expected_tags = vec![
-            json!(["p", reported_pubkey, "other"]),
-            json!(["L", "MOD"]),
-            json!(["l", "MOD>IH", "MOD"]),
-        ];
+        let expected_tags = vec![json!(["p", reported_pubkey, "other"])];
 
         for (i, expected_tag) in expected_tags.iter().enumerate() {
             assert_eq!(&report_event_value["tags"][i], expected_tag);
