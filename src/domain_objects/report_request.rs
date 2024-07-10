@@ -131,7 +131,7 @@ impl Display for ReportRequest {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use nostr::nips::nip56::Report;
+    use nostr_sdk::nips::nip56::Report;
     use serde_json::json;
     use std::str::FromStr;
 

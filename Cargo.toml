@@ -22,7 +22,7 @@ libc = "0.2.155"
 log = "0.4.21"
 metrics = "0.23.0"
 metrics-exporter-prometheus = "0.15.0"
-nostr-sdk = { git = "https://github.com/dcadenas/nostr.git", branch = "add-malware-report-variant" }
+nostr-sdk = { git = "https://github.com/rust-nostr/nostr.git", ref = "d244d10f53bf0ad2a1e84fffdf658c84d7bcce0c" }
 ractor = { git = "https://github.com/planetary-social/ractor.git", branch = "output_ports" }
 regex = "1.10.4"
 reqwest = "0.12.4"

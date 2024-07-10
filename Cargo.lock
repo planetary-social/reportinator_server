@@ -1674,7 +1674,7 @@ dependencies = [
 [[package]]
 name = "nostr"
 version = "0.32.0"
-source = "git+https://github.com/dcadenas/nostr.git?branch=add-malware-report-variant#749f580f8a3b2479df41e49a3c48e68de1c3244e"
+source = "git+https://github.com/rust-nostr/nostr.git#d244d10f53bf0ad2a1e84fffdf658c84d7bcce0c"
 dependencies = [
  "aes",
  "base64 0.21.7",
@@ -1703,7 +1703,7 @@ dependencies = [
 [[package]]
 name = "nostr-database"
 version = "0.32.0"
-source = "git+https://github.com/dcadenas/nostr.git?branch=add-malware-report-variant#749f580f8a3b2479df41e49a3c48e68de1c3244e"
+source = "git+https://github.com/rust-nostr/nostr.git#d244d10f53bf0ad2a1e84fffdf658c84d7bcce0c"
 dependencies = [
  "async-trait",
  "lru",
@@ -1716,7 +1716,7 @@ dependencies = [
 [[package]]
 name = "nostr-relay-pool"
 version = "0.32.0"
-source = "git+https://github.com/dcadenas/nostr.git?branch=add-malware-report-variant#749f580f8a3b2479df41e49a3c48e68de1c3244e"
+source = "git+https://github.com/rust-nostr/nostr.git#d244d10f53bf0ad2a1e84fffdf658c84d7bcce0c"
 dependencies = [
  "async-utility",
  "async-wsocket",
@@ -1731,7 +1731,7 @@ dependencies = [
 [[package]]
 name = "nostr-sdk"
 version = "0.32.0"
-source = "git+https://github.com/dcadenas/nostr.git?branch=add-malware-report-variant#749f580f8a3b2479df41e49a3c48e68de1c3244e"
+source = "git+https://github.com/rust-nostr/nostr.git#d244d10f53bf0ad2a1e84fffdf658c84d7bcce0c"
 dependencies = [
  "async-utility",
  "atomic-destructor",
@@ -1750,7 +1750,7 @@ dependencies = [
 [[package]]
 name = "nostr-signer"
 version = "0.32.0"
-source = "git+https://github.com/dcadenas/nostr.git?branch=add-malware-report-variant#749f580f8a3b2479df41e49a3c48e68de1c3244e"
+source = "git+https://github.com/rust-nostr/nostr.git#d244d10f53bf0ad2a1e84fffdf658c84d7bcce0c"
 dependencies = [
  "async-utility",
  "nostr",
@@ -1763,7 +1763,7 @@ dependencies = [
 [[package]]
 name = "nostr-zapper"
 version = "0.32.0"
-source = "git+https://github.com/dcadenas/nostr.git?branch=add-malware-report-variant#749f580f8a3b2479df41e49a3c48e68de1c3244e"
+source = "git+https://github.com/rust-nostr/nostr.git#d244d10f53bf0ad2a1e84fffdf658c84d7bcce0c"
 dependencies = [
  "async-trait",
  "nostr",
@@ -1827,7 +1827,7 @@ dependencies = [
 [[package]]
 name = "nwc"
 version = "0.32.0"
-source = "git+https://github.com/dcadenas/nostr.git?branch=add-malware-report-variant#749f580f8a3b2479df41e49a3c48e68de1c3244e"
+source = "git+https://github.com/rust-nostr/nostr.git#d244d10f53bf0ad2a1e84fffdf658c84d7bcce0c"
 dependencies = [
  "async-utility",
  "nostr",

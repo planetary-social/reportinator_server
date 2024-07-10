@@ -1,16 +1,14 @@
 use crate::actors::messages::SupervisorMessage;
 use crate::actors::{SlackClientPort, SlackClientPortBuilder};
+use crate::adapters::njump_or_pubkey;
 use crate::domain_objects::ReportRequest;
 use anyhow::Result;
 use hyper_rustls::HttpsConnector;
 use hyper_util::client::legacy::connect::HttpConnector;
 use nostr_sdk::nips::nip56::Report;
-use nostr_sdk::prelude::PublicKey;
-use nostr_sdk::ToBech32;
-use ractor::{call_t, ActorRef};
+use ractor::ActorRef;
 use slack_morphism::prelude::*;
 use std::env;
-use tracing::info;
 
 #[derive(Clone)]
 pub struct SlackClientAdapter {
@@ -41,43 +39,15 @@ impl SlackClientAdapter {
 
         Ok(())
     }
-
-    // This fn is currently duplicated and lives too in the http client adapter.
-    // It should be moved to a shared place at some point
-    async fn try_njump(&self, pubkey: PublicKey) -> Result<String> {
-        let maybe_reporter_nip05 =
-            call_t!(self.nostr_actor, SupervisorMessage::GetNip05, 100, pubkey)?;
-
-        Ok(maybe_reporter_nip05
-            .as_ref()
-            .map(|nip05| format!("https://njump.me/{}", nip05))
-            .unwrap_or(format!(
-                "`{}`",
-                pubkey.to_bech32().unwrap_or(pubkey.to_string())
-            )))
-    }
 }
 
 #[ractor::async_trait]
 impl SlackClientPort for SlackClientAdapter {
     async fn write_message(&self, report_request: &ReportRequest) -> Result<()> {
         let reported_pubkey_or_nip05_link =
-            match self.try_njump(report_request.target().pubkey()).await {
-                Ok(link) => link,
-                Err(e) => {
-                    info!("Failed to get nip05 link: {}", e);
-                    format!("`{}`", report_request.target().pubkey())
-                }
-            };
-
+            njump_or_pubkey(self.nostr_actor.clone(), report_request.target().pubkey()).await;
         let reporter_pubkey_or_nip05_link =
-            match self.try_njump(*report_request.reporter_pubkey()).await {
-                Ok(link) => link,
-                Err(e) => {
-                    info!("Failed to get nip05 link: {}", e);
-                    format!("`{}`", report_request.target().pubkey())
-                }
-            };
+            njump_or_pubkey(self.nostr_actor.clone(), *report_request.reporter_pubkey()).await;
 
         let message = PubkeyReportRequestMessage::new(
             report_request,
