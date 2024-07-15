@@ -228,7 +228,6 @@ fn slack_skipped_message(
 
         *Requested By*: {}
         {}
-
         {}
         "#,
         slack_username, reporter_nip05_markdown, reason, target_message,
