@@ -1,4 +1,4 @@
-use crate::domain_objects::{ModerationCategory, ReportRequest, ReportTarget};
+use crate::domain_objects::{ReportRequest, ReportTarget};
 use anyhow::Result;
 use nostr_sdk::prelude::*;
 use serde::{Deserialize, Serialize};
@@ -12,10 +12,7 @@ pub struct ModeratedReport {
 }
 
 impl ModeratedReport {
-    pub(super) fn create(
-        reported_request: &ReportRequest,
-        category: &ModerationCategory,
-    ) -> Result<Self> {
+    pub(super) fn create(reported_request: &ReportRequest, category: Report) -> Result<Self> {
         let Ok(reportinator_secret) = env::var("REPORTINATOR_SECRET") else {
             return Err(anyhow::anyhow!("REPORTINATOR_SECRET env variable not set"));
         };
@@ -24,8 +21,8 @@ impl ModeratedReport {
             ReportTarget::Event(event) => (event.pubkey, Some(event.id)),
             ReportTarget::Pubkey(pubkey) => (*pubkey, None),
         };
-        let tags = Self::set_tags(reported_pubkey, reported_event_id, category);
-        let report_event = EventBuilder::new(Kind::Reporting, category.description(), tags)
+        let tags = Self::set_tags(reported_pubkey, reported_event_id, category.clone());
+        let report_event = EventBuilder::new(Kind::Reporting, report_description(category), tags)
             .to_event(&reportinator_keys)?;
 
         Ok(Self {
@@ -36,25 +33,18 @@ impl ModeratedReport {
     fn set_tags(
         reported_pubkey: PublicKey,
         reported_event_id: Option<EventId>,
-        category: &ModerationCategory,
+        category: Report,
     ) -> impl IntoIterator<Item = Tag> {
-        let pubkey_tag = Tag::public_key_report(reported_pubkey, category.nip56_report_type());
+        let pubkey_tag = Tag::public_key_report(reported_pubkey, category.clone());
         let mut tags = vec![pubkey_tag];
 
-        reported_event_id
-            .inspect(|id| tags.push(Tag::event_report(*id, category.nip56_report_type())));
+        reported_event_id.inspect(|id| tags.push(Tag::event_report(*id, category)));
 
         let label_namespace_tag = Tag::custom(
             TagKind::SingleLetter(SingleLetterTag::uppercase(Alphabet::L)),
             vec!["MOD".to_string()],
         );
         tags.push(label_namespace_tag);
-
-        let label_tag = Tag::custom(
-            TagKind::SingleLetter(SingleLetterTag::lowercase(Alphabet::L)),
-            vec![format!("MOD>{}", category.nip69()), "MOD".to_string()],
-        );
-        tags.push(label_tag);
 
         tags
     }
@@ -65,6 +55,18 @@ impl ModeratedReport {
 
     pub fn id(&self) -> EventId {
         self.event.id
+    }
+}
+
+fn report_description(report: Report) -> &'static str {
+    match report {
+        Report::Nudity => "Depictions of nudity, porn, or sexually explicit content.",
+        Report::Malware => "Virus, trojan horse, worm, robot, spyware, adware, back door, ransomware, rootkit, kidnapper, etc.",
+        Report::Profanity => "Profanity, hateful speech, or other offensive content.",
+        Report::Illegal => "Content that may be illegal in some jurisdictions.",
+        Report::Spam => "Spam.",
+        Report::Impersonation => "Someone pretending to be someone else.",
+        Report::Other => "For reports that don't fit in the above categories.",
     }
 }
 
