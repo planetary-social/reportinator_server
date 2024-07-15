@@ -40,12 +40,6 @@ impl ModeratedReport {
 
         reported_event_id.inspect(|id| tags.push(Tag::event_report(*id, category)));
 
-        let label_namespace_tag = Tag::custom(
-            TagKind::SingleLetter(SingleLetterTag::uppercase(Alphabet::L)),
-            vec!["MOD".to_string()],
-        );
-        tags.push(label_namespace_tag);
-
         tags
     }
 
