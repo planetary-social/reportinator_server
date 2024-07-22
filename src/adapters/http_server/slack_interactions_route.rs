@@ -4,7 +4,7 @@ use crate::actors::messages::SupervisorMessage;
 use crate::config::Configurable;
 use crate::adapters::njump_or_pubkey;
 use crate::domain_objects::{ReportRequest, ReportTarget};
-use anyhow::{anyhow, Context, Result};
+use anyhow::{anyhow, Result};
 use axum::{extract::State, routing::post, Extension, Router};
 use nostr_sdk::prelude::*;
 use ractor::{cast, ActorRef};

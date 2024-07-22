@@ -9,7 +9,8 @@ use hyper_util::client::legacy::connect::HttpConnector;
 use nostr_sdk::nips::nip56::Report;
 use ractor::ActorRef;
 use slack_morphism::prelude::*;
-use std::env;
+use serde::Deserialize;
+use tracing::info;
 
 #[derive(Debug, Clone, Deserialize)]
 pub struct Config {
