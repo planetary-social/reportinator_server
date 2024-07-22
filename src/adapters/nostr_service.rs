@@ -55,10 +55,15 @@ impl NostrPort for NostrService {
         };
 
         if let Some(nip05_value) = metadata.nip05 {
-            let Ok(()) = nip05::verify(&public_key, &nip05_value, None).await else {
+            let Ok(verified) = nip05::verify(&public_key, &nip05_value, None).await else {
                 error!("Failed to verify Nip05 for public key: {}", public_key);
                 return None;
             };
+
+            if !verified {
+                error!("Nip05 for public key: {} is not verified", public_key);
+                return None;
+            }
 
             info!("Nip05 for public key: {} is: {}", public_key, nip05_value);
             return Some(nip05_value);
@@ -78,8 +83,8 @@ impl NostrPort for NostrService {
         tokio::spawn(async move {
             token_clone.cancelled().await;
             debug!("Cancelling relay subscription worker");
-            if let Err(e) = client_clone.stop().await {
-                error!("Failed to stop client: {}", e);
+            if let Err(e) = client_clone.shutdown().await {
+                error!("Failed to shutdown client: {}", e);
             }
         });
 
@@ -109,7 +114,7 @@ impl NostrPort for NostrService {
         // If we ever have different type of subscriptions, we should separate
         // creation from handling. We can have a single handler for all subs.
         // See: https://github.com/rust-nostr/nostr/issues/345#issuecomment-1985925161
-        self.client.subscribe(self.filters.clone(), None).await;
+        self.client.subscribe(self.filters.clone(), None).await?;
         self.client
             .handle_notifications(|notification| async {
                 if cancellation_token.is_cancelled() {

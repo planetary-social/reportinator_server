@@ -2,11 +2,12 @@ use super::app_errors::AppError;
 use super::WebAppState;
 use crate::actors::messages::SupervisorMessage;
 use crate::config::Configurable;
-use crate::domain_objects::{ModerationCategory, ReportRequest, ReportTarget};
-use anyhow::{anyhow, bail, Result};
+use crate::adapters::njump_or_pubkey;
+use crate::domain_objects::{ReportRequest, ReportTarget};
+use anyhow::{anyhow, Context, Result};
 use axum::{extract::State, routing::post, Extension, Router};
 use nostr_sdk::prelude::*;
-use ractor::{call_t, cast, ActorRef};
+use ractor::{cast, ActorRef};
 use reqwest::Client as ReqwestClient;
 use serde::Deserialize;
 use serde_json::{json, Value};
@@ -86,32 +87,19 @@ async fn slack_interaction_handler(
 async fn slack_message(
     message_dispatcher: ActorRef<SupervisorMessage>,
     report_request: ReportRequest,
-    maybe_category: Option<ModerationCategory>,
+    maybe_category: Option<Report>,
     slack_username: String,
 ) -> Result<String, AppError> {
-    let reporter_nip05_markdown =
-        match try_njump(message_dispatcher.clone(), report_request.reporter_pubkey()).await {
-            Ok(nip05) => nip05,
-            Err(e) => {
-                info!("Failed to get nip05 link for reporter: {}", e);
-                format!("`{}`", report_request.reporter_pubkey())
-            }
-        };
-
-    let reported_nip05_markdown = match try_njump(
+    let reporter_nip05_markdown = njump_or_pubkey(
         message_dispatcher.clone(),
-        &report_request.target().pubkey(),
+        *report_request.reporter_pubkey(),
     )
-    .await
-    {
-        Ok(nip05) => nip05,
-        Err(e) => {
-            info!("Failed to get nip05 link for reported: {}", e);
-            format!("`{}`", report_request.target().pubkey())
-        }
-    };
+    .await;
 
-    if let Some(moderated_report) = report_request.report(maybe_category.as_ref())? {
+    let reported_nip05_markdown =
+        njump_or_pubkey(message_dispatcher.clone(), report_request.target().pubkey()).await;
+
+    if let Some(moderated_report) = report_request.report(maybe_category.clone())? {
         let report_id = moderated_report.id();
         cast!(
             message_dispatcher,
@@ -139,7 +127,7 @@ async fn slack_message(
 
 fn slack_processed_message(
     slack_username: String,
-    category: ModerationCategory,
+    category: Report,
     report_id: EventId,
     reporter_nip05_markdown: String,
     report_request: ReportRequest,
@@ -165,6 +153,19 @@ fn slack_processed_message(
         ),
     };
 
+    let reason = match report_request.reporter_text() {
+        Some(text) => format!(
+            r#"
+            *Reporter Reason:*
+            ```
+            {}
+            ```
+            "#,
+            text
+        ),
+        None => "".to_string(),
+    };
+
     let message = format!(
         r#"
         🚩 *New Moderation Report* 🚩
@@ -174,20 +175,11 @@ fn slack_processed_message(
         *Report Id:* `{}`
 
         *Requested By*: {}
-        *Reporter Reason:*
-
-        ```
         {}
-        ```
 
         {}
         "#,
-        slack_username,
-        category,
-        report_id,
-        reporter_nip05_markdown,
-        report_request.reporter_text().unwrap_or(&"".to_string()),
-        target_message,
+        slack_username, category, report_id, reporter_nip05_markdown, reason, target_message,
     );
 
     let trimmed_string = message
@@ -225,6 +217,19 @@ fn slack_skipped_message(
         ),
     };
 
+    let reason = match report_request.reporter_text() {
+        Some(text) => format!(
+            r#"
+            *Reporter Reason:*
+            ```
+            {}
+            ```
+            "#,
+            text
+        ),
+        None => "".to_string(),
+    };
+
     let message = format!(
         r#"
         ⏭️ *Moderation Report Skipped* ⏭️
@@ -232,17 +237,10 @@ fn slack_skipped_message(
         *Report Skipped By:* {}
 
         *Requested By*: {}
-        *Reporter Reason:*
-        ```
         {}
-        ```
-
         {}
         "#,
-        slack_username,
-        reporter_nip05_markdown,
-        report_request.reporter_text().unwrap_or(&"".to_string()),
-        target_message,
+        slack_username, reporter_nip05_markdown, reason, target_message,
     );
 
     let trimmed_string = message
@@ -254,34 +252,9 @@ fn slack_skipped_message(
     trimmed_string
 }
 
-async fn try_njump(
-    message_dispatcher: ActorRef<SupervisorMessage>,
-    pubkey: &PublicKey,
-) -> Result<String> {
-    let maybe_reporter_nip05 = match call_t!(
-        message_dispatcher,
-        SupervisorMessage::GetNip05,
-        100,
-        *pubkey
-    ) {
-        Ok(nip05) => nip05,
-        Err(e) => {
-            bail!("Failed to get nip05 link {}", e);
-        }
-    };
-
-    Ok(maybe_reporter_nip05
-        .as_ref()
-        .map(|nip05| format!("https://njump.me/{}", nip05))
-        .unwrap_or(format!(
-            "`{}`",
-            pubkey.to_bech32().unwrap_or(pubkey.to_string())
-        )))
-}
-
 fn parse_slack_action(
     block_actions_event: SlackInteractionBlockActionsEvent,
-) -> Result<(Url, String, ReportRequest, Option<ModerationCategory>), AppError> {
+) -> Result<(Url, String, ReportRequest, Option<Report>), AppError> {
     let event_value = serde_json::to_value(block_actions_event)
         .map_err(|e| anyhow!("Failed to convert block_actions_event to Value: {:?}", e))?;
 
@@ -331,7 +304,7 @@ fn parse_slack_action(
         .map_err(|_| AppError::slack_parsing_error("reporter_pubkey"))?;
 
     let report_request = ReportRequest::new(target, reporter_pubkey, reporter_text);
-    let maybe_category = ModerationCategory::from_str(action_id).ok();
+    let maybe_category = Report::from_str(action_id).ok();
 
     Ok((
         response_url,
@@ -454,19 +427,16 @@ mod tests {
     fn test_parse_slack_action_with_hateful() {
         let reporter_pubkey = Keys::generate().public_key();
         let slack_username = "daniel";
-        let category_name = "hate";
+        let category_name = "nudity";
         let reporter_text = Some("This is wrong, report it!".to_string());
 
-        let reported_event = EventBuilder::text_note(
-            "This is a hateful comment, will someone report me? I hate everything!",
-            [],
-        )
-        .to_event(&Keys::generate())
-        .unwrap();
+        let reported_event = EventBuilder::text_note("I'm so nude I'm freezing", [])
+            .to_event(&Keys::generate())
+            .unwrap();
 
         let slack_actions_event = create_slack_actions_event(
-            &slack_username,
-            &category_name,
+            slack_username,
+            category_name,
             &reporter_pubkey,
             &reporter_text,
             &reported_event,
@@ -501,8 +471,8 @@ mod tests {
             .unwrap();
 
         let slack_actions_event = create_slack_actions_event(
-            &slack_username,
-            &category_name,
+            slack_username,
+            category_name,
             &reporter_pubkey,
             &reporter_text,
             &reported_event,

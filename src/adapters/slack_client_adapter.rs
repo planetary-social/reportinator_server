@@ -1,16 +1,15 @@
 use crate::actors::messages::SupervisorMessage;
 use crate::actors::{SlackClientPort, SlackClientPortBuilder};
 use crate::config::Configurable;
-use crate::domain_objects::{ModerationCategory, ReportRequest};
+use crate::adapters::njump_or_pubkey;
+use crate::domain_objects::ReportRequest;
 use anyhow::Result;
 use hyper_rustls::HttpsConnector;
 use hyper_util::client::legacy::connect::HttpConnector;
-use nostr_sdk::prelude::PublicKey;
-use nostr_sdk::ToBech32;
-use ractor::{call_t, ActorRef};
-use serde::Deserialize;
+use nostr_sdk::nips::nip56::Report;
+use ractor::ActorRef;
 use slack_morphism::prelude::*;
-use tracing::info;
+use std::env;
 
 #[derive(Debug, Clone, Deserialize)]
 pub struct Config {
@@ -56,43 +55,15 @@ impl SlackClientAdapter {
         let post_chat_resp = session.chat_post_message(&message).await;
         info!("post chat resp: {:#?}", &post_chat_resp);
     }
-
-    // This fn is currently duplicated and lives too in the http client adapter.
-    // It should be moved to a shared place at some point
-    async fn try_njump(&self, pubkey: PublicKey) -> Result<String> {
-        let maybe_reporter_nip05 =
-            call_t!(self.nostr_actor, SupervisorMessage::GetNip05, 100, pubkey)?;
-
-        Ok(maybe_reporter_nip05
-            .as_ref()
-            .map(|nip05| format!("https://njump.me/{}", nip05))
-            .unwrap_or(format!(
-                "`{}`",
-                pubkey.to_bech32().unwrap_or(pubkey.to_string())
-            )))
-    }
 }
 
 #[ractor::async_trait]
 impl SlackClientPort for SlackClientAdapter {
     async fn write_message(&self, report_request: &ReportRequest) -> Result<()> {
         let reported_pubkey_or_nip05_link =
-            match self.try_njump(report_request.target().pubkey()).await {
-                Ok(link) => link,
-                Err(e) => {
-                    info!("Failed to get nip05 link: {}", e);
-                    format!("`{}`", report_request.target().pubkey())
-                }
-            };
-
+            njump_or_pubkey(self.nostr_actor.clone(), report_request.target().pubkey()).await;
         let reporter_pubkey_or_nip05_link =
-            match self.try_njump(*report_request.reporter_pubkey()).await {
-                Ok(link) => link,
-                Err(e) => {
-                    info!("Failed to get nip05 link: {}", e);
-                    format!("`{}`", report_request.target().pubkey())
-                }
-            };
+            njump_or_pubkey(self.nostr_actor.clone(), *report_request.reporter_pubkey()).await;
 
         let message = PubkeyReportRequestMessage::new(
             report_request,
@@ -139,49 +110,13 @@ impl<'a> PubkeyReportRequestMessage<'a> {
                     .with_style("danger".to_string())
                     .with_value(pubkey.clone())
             ),
-            some_into(
-                SlackBlockButtonElement::from(ModerationCategory::Hate).with_value(pubkey.clone())
-            ),
-            some_into(
-                SlackBlockButtonElement::from(ModerationCategory::HateThreatening)
-                    .with_value(pubkey.clone())
-            ),
-            some_into(
-                SlackBlockButtonElement::from(ModerationCategory::Harassment)
-                    .with_value(pubkey.clone())
-            ),
-            some_into(
-                SlackBlockButtonElement::from(ModerationCategory::HarassmentThreatening)
-                    .with_value(pubkey.clone())
-            ),
-            some_into(
-                SlackBlockButtonElement::from(ModerationCategory::SelfHarm)
-                    .with_value(pubkey.clone())
-            ),
-            some_into(
-                SlackBlockButtonElement::from(ModerationCategory::SelfHarmIntent)
-                    .with_value(pubkey.clone())
-            ),
-            some_into(
-                SlackBlockButtonElement::from(ModerationCategory::SelfHarmInstructions)
-                    .with_value(pubkey.clone())
-            ),
-            some_into(
-                SlackBlockButtonElement::from(ModerationCategory::Sexual)
-                    .with_value(pubkey.clone())
-            ),
-            some_into(
-                SlackBlockButtonElement::from(ModerationCategory::SexualMinors)
-                    .with_value(pubkey.clone())
-            ),
-            some_into(
-                SlackBlockButtonElement::from(ModerationCategory::Violence)
-                    .with_value(pubkey.clone())
-            ),
-            some_into(
-                SlackBlockButtonElement::from(ModerationCategory::ViolenceGraphic)
-                    .with_value(pubkey.clone())
-            )
+            some_into(report_to_button(Report::Nudity).with_value(pubkey.clone())),
+            some_into(report_to_button(Report::Malware).with_value(pubkey.clone())),
+            some_into(report_to_button(Report::Profanity).with_value(pubkey.clone())),
+            some_into(report_to_button(Report::Illegal).with_value(pubkey.clone())),
+            some_into(report_to_button(Report::Spam).with_value(pubkey.clone())),
+            some_into(report_to_button(Report::Impersonation).with_value(pubkey.clone())),
+            some_into(report_to_button(Report::Other).with_value(pubkey.clone()))
         ]
     }
 }
@@ -220,8 +155,6 @@ impl<'a> SlackMessageTemplate for PubkeyReportRequestMessage<'a> {
     }
 }
 
-impl From<ModerationCategory> for SlackBlockButtonElement {
-    fn from(category: ModerationCategory) -> Self {
-        SlackBlockButtonElement::new(category.to_string().into(), pt!(category.to_string()))
-    }
+fn report_to_button(report: Report) -> SlackBlockButtonElement {
+    SlackBlockButtonElement::new(report.to_string().into(), pt!(report.to_string()))
 }
