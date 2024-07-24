@@ -1,0 +1,17 @@
+reportinator:
+  # test key
+  keys: 'feef9c2dcd6a1175a97dfbde700fa54f58ce69d4f30963f70efcc7257636759f'
+  relays: "ws://localhost"
+
+slack:
+  token: '<NOT_SET>'
+  channel_id: '<NOT_SET>'
+  signing_secret: '<NOT_SET>'
+
+http:
+  # Best practice would probably say
+  # default this to 127.0.0.1, and override
+  # when deployed.
+  bind_addr: '0.0.0.0'
+  bind_port: 3000
+  templates_dir: 'templates'

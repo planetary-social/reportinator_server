@@ -1,28 +1,38 @@
 use super::app_errors::AppError;
 use super::WebAppState;
 use crate::actors::messages::SupervisorMessage;
+use crate::config::Configurable;
 use crate::adapters::njump_or_pubkey;
 use crate::domain_objects::{ReportRequest, ReportTarget};
-use anyhow::{anyhow, Context, Result};
+use anyhow::{anyhow, Result};
 use axum::{extract::State, routing::post, Extension, Router};
 use nostr_sdk::prelude::*;
 use ractor::{cast, ActorRef};
 use reqwest::Client as ReqwestClient;
+use serde::Deserialize;
 use serde_json::{json, Value};
 use slack_morphism::prelude::*;
+use std::str::FromStr;
 use std::sync::Arc;
-use std::{env, str::FromStr};
 use tracing::{debug, error, info};
 
-pub fn slack_interactions_route() -> Result<Router<WebAppState>> {
+#[derive(Debug, Clone, Deserialize)]
+pub struct Config {
+    signing_secret: SlackSigningSecret,
+}
+
+impl Configurable for Config {
+    fn key() -> &'static str {
+        "slack"
+    }
+}
+
+pub fn slack_interactions_route(config: &Config) -> Result<Router<WebAppState>> {
     let client = prepare_slack_client()?;
     let listener_environment = prepare_listener_environment(client);
-    let signing_secret = env::var("SLACK_SIGNING_SECRET")
-        .context("Missing SLACK_SIGNING_SECRET")
-        .map(|secret| secret.into())?;
     let listener = SlackEventsAxumListener::<SlackHyperHttpsConnector>::new(listener_environment);
     let slack_layer = listener
-        .events_layer(&signing_secret)
+        .events_layer(&config.signing_secret)
         .with_event_extractor(SlackEventsExtractors::interaction_event());
 
     let route = Router::new().route(
@@ -392,7 +402,11 @@ mod tests {
             hb: Arc::new(Handlebars::new()),
         };
 
-        let router = slack_interactions_route().unwrap().with_state(state);
+        let router = slack_interactions_route(&Config {
+            signing_secret: String::new().into(),
+        })
+        .unwrap()
+        .with_state(state);
 
         let response = router
             .oneshot(

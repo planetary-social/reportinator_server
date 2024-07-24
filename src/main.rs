@@ -3,30 +3,34 @@ mod adapters;
 mod domain_objects;
 mod service_manager;
 
-use crate::actors::Supervisor;
-use crate::adapters::{GooglePublisher, HttpServer, NostrService, SlackClientAdapterBuilder};
-use crate::service_manager::ServiceManager;
+use crate::{
+    actors::Supervisor,
+    adapters::{GooglePublisher, HttpServer, NostrService, SlackClientAdapterBuilder},
+    service_manager::ServiceManager,
+};
 use actors::{NostrPort, PubsubPort, SlackClientPortBuilder};
 use anyhow::{Context, Result};
 use nostr_sdk::prelude::*;
-use std::env;
+use reportinator_server::config::ReportinatorConfig;
+use reportinator_server::config::{self, Config};
 use tracing::info;
 use tracing_subscriber::{fmt, prelude::*, EnvFilter};
 
 #[tokio::main]
 async fn main() -> Result<()> {
+    let config = Config::new("config")?;
+
     tracing_subscriber::registry()
         .with(fmt::layer())
         .with(EnvFilter::from_default_env())
         .init();
 
-    let Ok(reportinator_secret) = env::var("REPORTINATOR_SECRET") else {
-        return Err(anyhow::anyhow!("REPORTINATOR_SECRET env variable not set"));
-    };
+    let app_config = config.get::<ReportinatorConfig>()?;
+    // There are places that are non-trivial to pass app_config to,
+    //   so we will set a global here for the interim.
+    config::reportinator::set_config(app_config.clone());
 
-    let reportinator_keys =
-        Keys::parse(reportinator_secret).context("Error creating keys from secret")?;
-    let reportinator_public_key = reportinator_keys.public_key();
+    let reportinator_public_key = app_config.keys.public_key();
     info!(
         "Reportinator public key: {}",
         reportinator_public_key.to_string()
@@ -38,17 +42,18 @@ async fn main() -> Result<()> {
         .limit(0)
         .kind(Kind::GiftWrap)];
 
-    let relays = get_relays()?;
+    info!("Using relays: {:?}", app_config.relays);
 
-    let nostr_subscriber = NostrService::create(relays, gift_wrap_filter).await?;
+    let nostr_subscriber = NostrService::create(app_config.relays, gift_wrap_filter).await?;
     let google_publisher = GooglePublisher::create().await?;
     let slack_writer_builder = SlackClientAdapterBuilder::default();
 
     start_server(
+        config,
         nostr_subscriber,
         google_publisher,
         slack_writer_builder,
-        reportinator_keys,
+        app_config.keys,
     )
     .await
 }
@@ -91,6 +96,7 @@ async fn main() -> Result<()> {
 ///                                                     │                          Reportinator Server                          │
 ///                                                     └───────────────────────────────────────────────────────────────────────┘
 async fn start_server(
+    config: Config,
     nostr_subscriber: impl NostrPort,
     google_publisher: impl PubsubPort,
     slack_writer_builder: impl SlackClientPortBuilder,
@@ -101,7 +107,7 @@ async fn start_server(
     // Spawn actors and wire them together
     let supervisor = manager
         .spawn_actor(
-            Supervisor::default(),
+            Supervisor::new(config.clone()),
             (
                 nostr_subscriber,
                 google_publisher,
@@ -111,29 +117,12 @@ async fn start_server(
         )
         .await?;
 
-    manager.spawn_service(|cancellation_token| HttpServer::run(cancellation_token, supervisor));
+    manager.spawn_service(|cancellation_token| {
+        HttpServer::run(config, supervisor, cancellation_token)
+    });
 
     manager
         .listen_stop_signals()
         .await
         .context("Failed to spawn actors")
-}
-
-fn get_relays() -> Result<Vec<String>> {
-    let Ok(value) = env::var("RELAY_ADDRESSES_CSV") else {
-        return Err(anyhow::anyhow!("RELAY_ADDRESSES_CSV env variable not set"));
-    };
-
-    if value.trim().is_empty() {
-        return Err(anyhow::anyhow!("RELAY_ADDRESSES_CSV env variable is empty"));
-    }
-
-    let relays = value
-        .trim()
-        .split(',')
-        .map(|s| s.trim().to_string())
-        .collect();
-
-    info!("Using relays: {:?}", relays);
-    Ok(relays)
 }

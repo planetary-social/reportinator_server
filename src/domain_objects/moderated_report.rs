@@ -1,9 +1,9 @@
+use crate::config;
 use crate::domain_objects::{ReportRequest, ReportTarget};
 use anyhow::Result;
 use nostr_sdk::prelude::*;
 use serde::{Deserialize, Serialize};
 use serde_json;
-use std::env;
 use std::fmt::{self, Display, Formatter};
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -13,10 +13,8 @@ pub struct ModeratedReport {
 
 impl ModeratedReport {
     pub(super) fn create(reported_request: &ReportRequest, category: Report) -> Result<Self> {
-        let Ok(reportinator_secret) = env::var("REPORTINATOR_SECRET") else {
-            return Err(anyhow::anyhow!("REPORTINATOR_SECRET env variable not set"));
-        };
-        let reportinator_keys = Keys::parse(reportinator_secret)?;
+        let reportinator_keys = &config::reportinator::config().keys;
+
         let (reported_pubkey, reported_event_id) = match reported_request.target() {
             ReportTarget::Event(event) => (event.pubkey, Some(event.id)),
             ReportTarget::Pubkey(pubkey) => (*pubkey, None),
