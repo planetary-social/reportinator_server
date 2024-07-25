@@ -1,20 +1,20 @@
 use crate::actors::messages::SupervisorMessage;
 use crate::actors::{SlackClientPort, SlackClientPortBuilder};
-use crate::config::Configurable;
 use crate::adapters::njump_or_pubkey;
+use crate::config::Configurable;
 use crate::domain_objects::ReportRequest;
 use anyhow::Result;
 use hyper_rustls::HttpsConnector;
 use hyper_util::client::legacy::connect::HttpConnector;
 use nostr_sdk::nips::nip56::Report;
 use ractor::ActorRef;
-use slack_morphism::prelude::*;
 use serde::Deserialize;
+use slack_morphism::prelude::*;
 use tracing::info;
 
 #[derive(Debug, Clone, Deserialize)]
 pub struct Config {
-    pub token: SlackApiToken,
+    pub token: String,
     pub channel_id: SlackChannelId,
 }
 
@@ -51,7 +51,8 @@ impl SlackClientPortBuilder for SlackClientAdapterBuilder {
 
 impl SlackClientAdapter {
     async fn post_message(&self, message: SlackApiChatPostMessageRequest) {
-        let session = self.client.open_session(&self.config.token);
+        let token = SlackApiToken::new(self.config.token.clone().into());
+        let session = self.client.open_session(&token);
 
         let post_chat_resp = session.chat_post_message(&message).await;
         info!("post chat resp: {:#?}", &post_chat_resp);
