@@ -131,6 +131,10 @@ impl Display for ReportRequest {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::config::{
+        reportinator::{self, Config as ReportinatorConfig},
+        Config,
+    };
     use nostr_sdk::nips::nip56::Report;
     use serde_json::json;
     use std::str::FromStr;
@@ -138,6 +142,12 @@ mod tests {
     fn setup_test_environment(
         event_target: bool,
     ) -> (ReportRequest, ReportTarget, PublicKey, Option<String>) {
+        let config = Config::new("config").unwrap();
+        let app_config = config.get::<ReportinatorConfig>().unwrap();
+        if let Err(_config) = reportinator::set_config(app_config) {
+            // We need the config for this test. Ignore the error if it was already set
+        }
+
         let reported_secret = "a39b6f282044c4812c1729a783f32d974ed13072632f08201f52d083593d6e76";
         let reported_keys = Keys::parse(reported_secret).unwrap();
 

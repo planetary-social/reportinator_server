@@ -52,6 +52,6 @@ pub fn config<'a>() -> &'a Config {
     CONFIG.get().unwrap()
 }
 
-pub fn set_config(config: Config) {
-    CONFIG.set(config).expect("Failed to set  config");
+pub fn set_config(config: Config) -> Result<(), Config> {
+    CONFIG.set(config)
 }

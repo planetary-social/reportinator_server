@@ -18,17 +18,16 @@ use tracing_subscriber::{fmt, prelude::*, EnvFilter};
 
 #[tokio::main]
 async fn main() -> Result<()> {
-    let config = Config::new("config")?;
-
     tracing_subscriber::registry()
         .with(fmt::layer())
         .with(EnvFilter::from_default_env())
         .init();
 
+    let config = Config::new("config")?;
     let app_config = config.get::<ReportinatorConfig>()?;
     // There are places that are non-trivial to pass app_config to,
     //   so we will set a global here for the interim.
-    config::reportinator::set_config(app_config.clone());
+    config::reportinator::set_config(app_config.clone()).expect("Failed to set config");
 
     let reportinator_public_key = app_config.keys.public_key();
     info!(
