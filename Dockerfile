@@ -63,6 +63,9 @@ RUN adduser \
     appuser
 USER appuser
 
+WORKDIR /app
+RUN mkdir config
+
 # Copy the executable from the "build" stage.
 COPY --from=build /bin/server /bin/
 COPY --from=build /app/templates /app/templates
